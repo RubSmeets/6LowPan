@@ -40,5 +40,23 @@
 #ifndef KEYMANAGEMENT_V1_H_
 #define KEYMANAGEMENT_V1_H_
 
+enum keymanagement_flags {
+  /**< The key management layer encryption was OK. */
+  ENCRYPT_OK,
+
+  /**< The key management layer encryption failed. */
+  ENCRYPT_FAILED,
+
+  /**< The key management layer decryption was OK. */
+  DECRYPT_OK,
+
+  /**< The key management layer decryption failed. */
+  DECRYPT_FAILED,
+
+  /**< The key management layer is requesting key. */
+  KEY_REQUEST_TX,
+
+};
+
 
 #endif /* KEYMANAGEMENT_V1_H_ */

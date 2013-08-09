@@ -644,7 +644,7 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
 #else
   /* Create hello packet */
   create_hello((uint8_t *)packetbuf_dataptr());
-  packetbuf_set_datalen(35);
+  packetbuf_set_datalen(2);
   /* Create the MAC header for the data packet. */
   hdrlen = NETSTACK_FRAMER.create();
   if(hdrlen < 0) {
