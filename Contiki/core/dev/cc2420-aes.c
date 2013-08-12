@@ -70,25 +70,6 @@
 
 #define MIN(a,b) ((a) < (b)? (a): (b))
 
-#if ENABLE_CCM_APPLICATION
-#include "net/rime.h"
-#include "net/packetbuf.h"
-
-#define MAX_NONCES 2
-
-uint32_t msg_cntr;
-
-struct nonces {
-  rimeaddr_t sender;
-  uint32_t 	 src_msg_cntr;
-  uint8_t 	 src_nonce_cntr;
-};
-
-static uint8_t  amount_of_known_devices;
-static struct nonces received_nonces[MAX_NONCES];
-
-#endif
-
 /*---------------------------------------------------------------------------*/
 void
 cc2420_aes_set_key(const uint8_t *key, int index)
@@ -145,67 +126,3 @@ cc2420_aes_cipher(uint8_t *data, int len, int key_index)
   }
 }
 /*---------------------------------------------------------------------------*/
-#if ENABLE_CCM_APPLICATION
-/*---------------------------------------------------------------------------*/
-void
-aes_ccm_message_encrypt(uint8_t *data, uint8_t *data_len)
-{
-	uint8_t nonce_ctr;
-
-	/* Read the nonce counter from Flash */
-	xmem_pread(&nonce_ctr, 1, APP_SECURITY_DATA);
-
-	/* Extend data packet with nonce */
-	uint8_t i;
-	for(i=0; i < 4; i++) data[i] = (msg_cntr >> ((3-i)*8)) & 0xff;
-	data[4] = nonce_ctr;
-
-	*data_len = *data_len + 5;
-
-	/* Encrypt message */
-	if(!cc2420_encrypt_ccm(data, &nonce_ctr, data_len)) return;
-
-	PRINTFSECAPP("after: ");
-	for(i=1; i<22; i++) PRINTFSECAPP("%.2x",data[i]);
-	PRINTFSECAPP("\n");
-}
-/*---------------------------------------------------------------------------*/
-void
-aes_ccm_message_decrypt(uint8_t *data, uint8_t *data_len)
-{
-	uint32_t src_msg_cntr;
-	uint8_t i, src_index;
-
-	/* Parse message counter from source */
-	for(i=0; i<4; i++) src_msg_cntr = (uint32_t)(data[i]<<((3-i)*8));
-	//src_msg_cntr = ((uint32_t)data[0]<<24) + ((uint32_t)data[1]<<16) + ((uint32_t)data[2]<<8) + (data[3]);
-
-	/* Check if we know the source */ //VERHUIZEN NAAR KEYSCHEME LAYER
-	src_index = 0xff;
-	for(i = 0; i < amount_of_known_devices; i++) {
-		if(rimeaddr_cmp(packetbuf_addr(PACKETBUF_ADDR_SENDER), &received_nonces[i].sender)) {
-			src_index = i;
-			break;
-		}
-	}
-	if(src_index == 0xff) {
-		if(amount_of_known_devices < MAX_NONCES) {
-			/* Add device to known devices */
-			rimeaddr_copy(&received_nonces[amount_of_known_devices].sender, packetbuf_addr(PACKETBUF_ADDR_SENDER));
-			received_nonces[amount_of_known_devices].src_msg_cntr = src_msg_cntr;
-			received_nonces[amount_of_known_devices].src_nonce_cntr = data[4];
-			amount_of_known_devices++;
-		}
-		else {
-			PRINTFSECAPP("No space to add device\n");
-			return;
-		}
-	}
-
-	/* Check if it is not a replay message */
-
-	/* Decrypt message */
-	cc2420_decrypt_ccm(data, &src_msg_cntr, &data[4], data_len);
-}
-/*---------------------------------------------------------------------------*/
-#endif

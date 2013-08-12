@@ -56,7 +56,19 @@ enum keymanagement_flags {
   /**< The key management layer is requesting key. */
   KEY_REQUEST_TX,
 
+  /**< The key management can't add device because there is no space. */
+  NO_SPACE_FOR_DEVICE,
+
+  /**< Key management is busy. */
+  KEY_MANAGE_BUSY,
+
 };
 
+enum keyfreshness_flags {
+	/**< The session key is still valid and fresh */
+	FRESH 		= 0x00,
+	/**< The session key has expired */
+	EXPIRED 	= 0x01,
+};
 
 #endif /* KEYMANAGEMENT_V1_H_ */

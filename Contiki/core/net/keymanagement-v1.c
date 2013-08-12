@@ -8,49 +8,154 @@
 #include "keymanagement-v1.h"
 #include "dev/cc2420.h"
 #include "net/packetbuf.h"
-#include "uip.h"
+#include "net/uip-udp-packet.h"
 
-#define MAX_NONCES 2
-#define DEVICE_NOT_FOUND -1
+#define DEBUG_SEC 1
+#if DEBUG_SEC
+#include <stdio.h>
+#define PRINTFSECKEY(...) printf(__VA_ARGS__)
+#else
+#define PRINTFSECKEY(...)
+#endif
 
-struct nonces {
-  uip_ipaddr_t  *device_id;
-  uint32_t 	 	src_msg_cntr;
-  uint8_t 	 	src_nonce_cntr;
+#define MAX_DEVICES 		2
+#define DEVICE_NOT_FOUND 	-1
+#define SEC_DATA_SIZE 		33
+#define DEVICE_ID_SIZE		16
+
+struct device_sec_data {
+  uip_ipaddr_t  remote_device_id;
+  uint32_t		msg_cntr;
+  uint8_t		nonce_cntr;
+  uint32_t 	 	remote_msg_cntr;
+  uint8_t 	 	remote_nonce_cntr;
+  uint8_t		key_freshness;
 };
 
 struct keymanagement_state {
 	enum {IDLE, REQUEST_KEY, UPDATE_KEY} state;
 };
 
-static uint8_t  amount_of_known_devices;
-static struct nonces received_nonces[MAX_NONCES];
+static struct device_sec_data devices[MAX_DEVICES];
 static struct keymanagement_state *s;
-uint32_t msg_cntr;
+
+static uint8_t amount_of_known_devices;
+static int stored_dest_index;
+
+static int  search_device_id(uip_ipaddr_t* curr_device_id);
+static int  add_device_id(uip_ipaddr_t* curr_device_id);
+static void get_sec_data_at_index(int index);
+
+/*---------------------------------------------------------------------------*/
+PROCESS(keymanagement_process, "key management");
+/*---------------------------------------------------------------------------*/
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * Output function
+ * Initialization function																NIET GETEST!
+ */
+/*-----------------------------------------------------------------------------------*/
+void
+keymanagement_init(void)
+{
+	uint8_t temp_sec_device_list[MAX_DEVICES * SEC_DATA_SIZE];
+	uint8_t i;
+
+	/* State to idle */
+	s->state = IDLE;
+
+	/* Reset index */
+	stored_dest_index = 0;
+
+	/* Read the security data from flash and populate device list */
+	xmem_pread(temp_sec_device_list, (MAX_DEVICES * SEC_DATA_SIZE), APP_SECURITY_DATA);
+
+	amount_of_known_devices = 0;
+	for(i=0; i<MAX_DEVICES; i++) {
+		/* Set device_id */
+		memcpy(devices[i].remote_device_id, temp_sec_device_list[i*SEC_DATA_SIZE], DEVICE_ID_SIZE);
+
+		/* Set nonce counter (Must be equal or greater than 1) */
+		devices[i].nonce_cntr = temp_sec_device_list[(i*SEC_DATA_SIZE)+32];
+
+		/* Reset message counter */
+		devices[i].msg_cntr = 0;
+
+		/*
+		 * Check if the nonce is empty else increment and add device. Because
+		 * the nonce counter must be equal or greater than 1, we can verify
+		 * that there still is useful information.
+		 * */
+		if(devices[i].nonce_cntr != 0) {
+			if(devices[i].nonce_cntr == 0xff) {
+				/* Request new key */
+				devices[i].key_freshness = EXPIRED;
+				s->state = REQUEST_KEY;
+			} else {
+				/* Increment nonces to allow the key to stay fresh */
+				devices[i].key_freshness = FRESH;
+				devices[i].nonce_cntr++;
+				temp_sec_device_list[(i*SEC_DATA_SIZE)+32]++;
+			}
+			amount_of_known_devices++;
+		}
+	}
+
+	/* Write nonce counter back to flash */
+	if(amount_of_known_devices > 0) {
+		xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
+		xmem_pwrite(temp_sec_device_list, (MAX_DEVICES * SEC_DATA_SIZE), APP_SECURITY_DATA);
+	}
+
+	/* Start process */
+	process_start(&keymanagement_process, NULL);
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
+ * Output function																			NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
 int
-send_encrypted(uint8_t *data, uint8_t *data_len)
+send_encrypt(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len)
 {
 	uint8_t i;
 	int dest_index;
 	uint8_t nonce_ctr;
 
+	/*
+	 * Check the state of the key management scheme
+	 * 		UPDATE = failed
+	 * 		REQUEST_KEY = failed
+	 * 		IDLE = OK
+	 */
+	if(s->state != IDLE) return KEY_MANAGE_BUSY;
+
 	/* Check the destination IPv6-address */
-	dest_index = search_IP(...);
+	dest_index = search_device_id(c.ripaddr);
 
 	if(dest_index < 0) {
-		/* Not found request session key */
-		s->state = REQUEST_KEY;
-		return KEY_REQUEST_TX;
+		/* try to add designated device */
+		if(add_device_id(c.ripaddr) < 0) {
+			/* No space for device */
+			PRINTFSECKEY("No space to add device. tot:%d max:%d\n", amount_of_known_devices, MAX_DEVICES);
+			s->state = IDLE;
+			return NO_SPACE_FOR_DEVICE;
+		} else {
+			/* Request key for new device */
+			PRINTFSECKEY("Requesting key for: %d\n", c.ripaddr[0]);
+			devices[dest_index].key_freshness = EXPIRED;
+			s->state = REQUEST_KEY;
+			return KEY_REQUEST_TX;
+		}
 	}
 
-	/* Read the nonce counter from Flash */
-	xmem_pread(&nonce_ctr, 1, APP_SECURITY_DATA);
+	/* Get Session key from flash if necessary */
+	if(stored_dest_index != dest_index) {
+		/* Read the Session key from Flash */
+		get_sec_data_at_index(dest_index);
+		stored_dest_index = dest_index;
+	}
 
 	/* Extend data packet with nonce */
 	for(i=0; i < 4; i++) data[i] = (msg_cntr >> ((3-i)*8)) & 0xff;
@@ -59,18 +164,18 @@ send_encrypted(uint8_t *data, uint8_t *data_len)
 	*data_len = *data_len + 5;
 
 	/* Encrypt message */
-	if(!cc2420_encrypt_ccm(data, &nonce_ctr, data_len)) return ENCRYPT_FAILED;
+	if(!cc2420_encrypt_ccm(data, &msg_cntr, &nonce_ctr, data_len)) return ENCRYPT_FAILED;
 
-	PRINTFSECAPP("after: ");
-	for(i=1; i<22; i++) PRINTFSECAPP("%.2x",data[i]);
-	PRINTFSECAPP("\n");
+	PRINTFSECKEY("after: ");
+	for(i=1; i<22; i++) PRINTFSECKEY("%.2x",data[i]);
+	PRINTFSECKEY("\n");
 
 	return ENCRYPT_OK;
 }
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * Input function
+ * Input function																			NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
 int
@@ -81,7 +186,7 @@ input_decrypt(uint8_t *data, uint8_t *data_len)
 	int src_index;
 
 	/* Check if source address is known */
-	src_index = search_IP(...);
+	src_index = search_device_id(...);
 
 	/* Parse message counter from source */
 	for(i=0; i<4; i++) src_msg_cntr = (uint32_t)(data[i]<<((3-i)*8));
@@ -94,32 +199,77 @@ input_decrypt(uint8_t *data, uint8_t *data_len)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * Search the given IP address
+ * Key management process																	NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
-int
-search_IP(uip_ipaddr_t* curr_device_id)
+PROCESS_THREAD(keymanagement_process, ev, data)
+{
+  PROCESS_BEGIN();
+
+  PRINTFSECKEY("keymanagement_process: started\n");
+
+  while(1) {
+    PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
+
+  }
+
+  PROCESS_END();
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
+ * Search the given IP address																NIET GETEST!
+ */
+/*-----------------------------------------------------------------------------------*/
+static int
+search_device_id(uip_ipaddr_t* curr_device_id)
 {
 	int index = DEVICE_NOT_FOUND;
 	uint8_t i;
 
 	for(i = 0; i < amount_of_known_devices; i++) {
-		if(uip_ipaddr_cmp(curr_device_id , received_nonces[i].device_id)) {
+		if(uip_ipaddr_cmp(curr_device_id , devices[i].remote_device_id)) {
 			index = i;
 			break;
 		}
 	}
-	if(index == DEVICE_NOT_FOUND) {
-		if(amount_of_known_devices < MAX_NONCES) {
-			/* Add device to known devices */
-			uip_ipaddr_copy(received_nonces[amount_of_known_devices].device_id, curr_device_id);
-			index = amount_of_known_devices;
-			amount_of_known_devices++;
-		}
-		else {
-			PRINTFSECAPP("No space to add device\n");
-		}
+	return index;
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
+ * add the given device id to secured communication											NIET GETEST!
+ */
+/*-----------------------------------------------------------------------------------*/
+static int
+add_device_id(uip_ipaddr_t* curr_device_id)
+{
+	int index = DEVICE_NOT_FOUND;
+
+	if(amount_of_known_devices < MAX_DEVICES) {
+		/* Add device to known devices */
+		uip_ipaddr_copy(devices[amount_of_known_devices].remote_device_id, curr_device_id);
+		index = amount_of_known_devices;
+		amount_of_known_devices++;
 	}
 
 	return index;
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
+ * Get the security data from flash for device at a given index (index)						NIET AF!
+ */
+/*-----------------------------------------------------------------------------------*/
+static void
+get_sec_data_at_index(int index)
+{
+	uint8_t temp_sec_data[SECURITY_DATA_SIZE];
+
+	/* Read Session key from flash memory */
+	xmem_pread(temp_sec_data, SECURITY_DATA_SIZE, APP_SECURITY_DATA);
+
+	/* Set the application session key */
+	CC2420_WRITE_RAM_REV(&app_sec_data[1], CC2420RAM_KEY1, 16);
+
 }

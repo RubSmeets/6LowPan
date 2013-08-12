@@ -124,10 +124,10 @@ typedef unsigned long off_t;
 #define CFS_XMEM_CONF_SIZE      (1 * XMEM_ERASE_UNIT_SIZE)
 
 /* Use 7th 64k of external flash for security data Link layer */
-#define MAC_SECURITY_DATA		(6 * XMEM_ERASE_UNIT_SIZE)
+#define MAC_SECURITY_DATA		(6 * XMEM_ERASE_UNIT_SIZE)					/* format: | network key(16) | link_nonce_cntr(1) | sensor key(16) | */
 
 /* Use 8th 64k of external flash for nonce counter application layer */
-#define APP_SECURITY_DATA		(7 * XMEM_ERASE_UNIT_SIZE)
+#define APP_SECURITY_DATA		(7 * XMEM_ERASE_UNIT_SIZE)					/* format: | device id(16) | session key (16) | nonce counter | */
 
 #define CFS_RAM_CONF_SIZE 4096
 

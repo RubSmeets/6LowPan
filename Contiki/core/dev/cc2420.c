@@ -157,7 +157,6 @@ inline void cc2420_initLinkLayerSec(void);
 
 #if ENABLE_CCM_APPLICATION
 uint8_t  hasKeyIs_1;
-uint32_t msg_cntr;
 
 #define APP_MIC_LEN 8
 #define CC2420_SEC_TXKEYSEL_1 (1<<6)
@@ -165,9 +164,8 @@ uint32_t msg_cntr;
 #define RX 1
 #define TX 0
 
-inline void cc2420_initApplLayerSec(void);
-static void cc2420_setAssociatedData(unsigned short RX_nTX, unsigned short mac_hdrlen);
-static void cc2420_setNonce(unsigned short RX_nTX, uint32_t *msg_ctr, uint8_t *p_nonce_ctr);
+static void setAssociatedData(unsigned short RX_nTX, unsigned short hdrlen);
+static void setNonce(unsigned short RX_nTX, uint32_t *msg_ctr, uint8_t *p_nonce_ctr);
 #endif
 
 signed char cc2420_last_rssi;
@@ -364,10 +362,6 @@ cc2420_init(void)
     reg = getreg(CC2420_SECCTRL0);
     reg &= ~RXFIFO_PROTECTION;
     setreg(CC2420_SECCTRL0, reg);
-#endif
-
-#if ENABLE_CCM_APPLICATION
-    cc2420_initApplLayerSec();
 #endif
 
   cc2420_set_pan_addr(0xffff, 0x0000, NULL);
@@ -1043,85 +1037,48 @@ cc2420_initLinkLayerSec(void)
 #endif
 /*---------------------------------------------------------------------------*/
 #if ENABLE_CCM_APPLICATION
-inline void
-cc2420_initApplLayerSec(void)
-{
-	if(!hasKeyIs_1) {
-		return;
-	}
-
-	uint8_t app_sec_data[17];
-
-	/* Read application security data from Flash mem */
-	xmem_pread(app_sec_data, 17, APP_SECURITY_DATA);
-
-	PRINTFSECAPP("cc2420: App nonce ctr %d before\n", app_sec_data[0]);
-
-	/* Increment nonce counter */
-	if(app_sec_data[0] != 0xFF) app_sec_data[0]++;
-	//else request new session key
-
-	/* Reset the message counter */
-	msg_cntr = 0;
-
-	PRINTFSECAPP("cc2420: App nonce ctr %d after\n", app_sec_data[0]);
-
-	/* Write nonce counter back to flash */
-	//xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
-	//xmem_pwrite(app_sec_data, 17, APP_SECURITY_DATA);
-
-	/* Set the application session key */
-	CC2420_WRITE_RAM_REV(&app_sec_data[1], CC2420RAM_KEY1, 16);
-
-	PRINTFSECAPP("Session key: ");
-	uint8_t i;
-	for(i=1; i<17; i++) PRINTFSECAPP("%.2x", app_sec_data[i]);
-	PRINTFSECAPP("\n");
-
-	PRINTFSECAPP("cc2420: Init APP sec complete\n");
-}
 /*---------------------------------------------------------------------------*/
 static void
-cc2420_setAssociatedData(unsigned short RX_nTX, unsigned short mac_hdrlen)
+setAssociatedData(unsigned short RX_nTX, unsigned short hdrlen)
 {
 	/* SECCTRL1 must be set correctly to size of MAC HDR (21 + 5) for IEEE802.15.4-2003 */
 	uint16_t reg;
-	if(RX_nTX) 	reg = (((uint16_t)(mac_hdrlen)) & 0x00ff);
-	else 		reg = ((((uint16_t)(mac_hdrlen))<<8) & 0xff00);
+	if(RX_nTX) 	reg = (((uint16_t)(hdrlen)) & 0x00ff);
+	else 		reg = ((((uint16_t)(hdrlen))<<8) & 0xff00);
 	setreg(CC2420_SECCTRL1, reg);
-	PRINTFSEC("cc2420: RX_nTX: %d, Associated data: %d, SEC1 reg: %.2X\n, ", RX_nTX, mac_hdrlen, reg);
+	PRINTFSEC("cc2420: RX_nTX: %d, Associated data: %d, SEC1 reg: %.2X\n, ", RX_nTX, hdrlen, reg);
 }
 /*---------------------------------------------------------------------------*/
 static void
-cc2420_setNonce(unsigned short RX_nTX, uint32_t *p_msg_ctr, uint8_t *p_nonce_ctr)
+setNonce(unsigned short RX_nTX, uint32_t *p_msg_ctr, uint8_t *p_nonce_ctr)
 {
 	uint8_t nonce[16];
 	uint8_t ieee_addr_temp[8];
 
 	/* Set flags:
-			CTR flag (0 0) -> reserved for future expansion
-	 		CBC flag (0 1) -> 7-bit reserved, 6-bit Adata is 1 in my case (not everything is encrypted)
-			L (1) 		   -> n+q=15 (n=13)(q=2) l=[q-1]3 | n is the nonce length (see standard)
-	*/
+	 *		CTR flag (0 0) -> reserved for future expansion
+	 *		CBC flag (0 1) -> 7-bit reserved, 6-bit Adata is 1 in my case (not everything is encrypted)
+	 *		L (1) 		   -> n+q=15 (n=13)(q=2) l=[q-1]3 | n is the nonce length (see standard)
+	 */
 	if(!RX_nTX) CC2420_READ_RAM_REV(ieee_addr_temp, CC2420RAM_IEEEADDR, 8);
-	else 		CC2420_READ_RAM_REV(ieee_addr_temp, CC2420RAM_IEEEADDR, 8);//memcpy(&ieee_addr_temp[0], )
+	else 		CC2420_READ_RAM_REV(ieee_addr_temp, CC2420RAM_IEEEADDR, 8);//memcpy(&ieee_addr_temp[0], ) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!nog juist doen!!!!
 
 	nonce[0] =  0x00 | 0x01 | 0x08;
-	memcpy(nonce+1, ieee_addr_temp, 8);		// Setting source address
-	nonce[9] = 0xFF & (*p_msg_ctr>>24);		// Setting frame counter
-	nonce[10] = 0xFF & (*p_msg_ctr>>16);	//
-	nonce[11] = 0xFF & (*p_msg_ctr>>8);		//
-	nonce[12] = 0xFF & (*p_msg_ctr);	 	//
-	nonce[13] = *p_nonce_ctr;			// Setting key sequence counter (incremented with every new key)
-	nonce[14] = 0x00;					// Setting MSB of Block counter to 0x00 to be complained with IEEE802.15.4
-	nonce[15] = 0x01;					// (only set on initiation)
+	memcpy(nonce+1, ieee_addr_temp, 8);		/* Setting source address */
+	nonce[9] = 0xFF & (*p_msg_ctr>>24);		/* Setting frame counter */
+	nonce[10] = 0xFF & (*p_msg_ctr>>16);
+	nonce[11] = 0xFF & (*p_msg_ctr>>8);
+	nonce[12] = 0xFF & (*p_msg_ctr);
+	nonce[13] = *p_nonce_ctr;			/* Setting key sequence counter (incremented with every new key) */
+	nonce[14] = 0x00;					/* Setting MSB of Block counter to 0x00 to be complained with IEEE802.15.4 */
+	nonce[15] = 0x01;					/* (only set on initiation) */
 
 	uint8_t i;
 	PRINTFSECAPP("READ NONCE: ");
 	for(i=0; i<16; i++) PRINTFSECAPP("%.2X ",nonce[i]);
 	PRINTFSECAPP("\n");
 
-	// Write Tx Nonce
+	/* Write Tx Nonce */
 	if(RX_nTX) 	CC2420_WRITE_RAM_REV(nonce, CC2420RAM_RXNONCE, 16);
 	else		CC2420_WRITE_RAM_REV(nonce, CC2420RAM_TXNONCE, 16);
 }
@@ -1142,10 +1099,10 @@ cc2420_decrypt_ccm(uint8_t *data, uint32_t *src_msg_cntr, uint8_t *src_nonce_cnt
 	PRINTFSECAPP("cc2420: Reg 0: %.2x\n",reg);
 
 	/* Set associated data RX to 5 */
-	cc2420_setAssociatedData(RX, 5);
+	setAssociatedData(RX, 5);
 
 	/* Set Nonce Rx */
-	cc2420_setNonce(RX, src_msg_cntr, src_nonce_cntr);
+	setNonce(RX, src_msg_cntr, src_nonce_cntr);
 
 	/* Flush the RXFIFO */
 	flushrx();
@@ -1170,7 +1127,7 @@ cc2420_decrypt_ccm(uint8_t *data, uint32_t *src_msg_cntr, uint8_t *src_nonce_cnt
 }
 /*---------------------------------------------------------------------------*/
 int
-cc2420_encrypt_ccm(uint8_t *data, uint8_t *nonce_cntr, uint8_t *data_len)
+cc2420_encrypt_ccm(uint8_t *data, uint32_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len)
 {
 	unsigned int stats;
 	uint8_t  tot_len;
@@ -1187,10 +1144,10 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *nonce_cntr, uint8_t *data_len)
 	PRINTFSECAPP("cc2420: Reg 0: %.2x\n",reg);
 
 	/* Set associated data TX to 5 */
-	cc2420_setAssociatedData(TX, 5);
+	setAssociatedData(TX, 5);
 
 	/* Set Nonce tx */
-	cc2420_setNonce(TX, &msg_cntr, nonce_cntr);
+	setNonce(TX, msg_cntr, nonce_cntr);
 
 	/* Flush the TXFIFO */
 	strobe(CC2420_SFLUSHTX);
@@ -1212,7 +1169,7 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *nonce_cntr, uint8_t *data_len)
 	PRINTFSECAPP("cc2420: Reg 0 restore: %.2x\n",reg_old);
 
 	/* Increment message counter */
-	msg_cntr++;
+	*msg_cntr++;
 
 	return 1;
 }
