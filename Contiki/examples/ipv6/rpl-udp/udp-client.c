@@ -33,8 +33,11 @@
 #include "net/uip.h"
 #include "net/uip-ds6.h"
 #include "net/uip-udp-packet.h"
+#include "dev/button-sensor.h"
 #include "sys/ctimer.h"
 #include "cc2420-aes.h"
+#include "dev/cc2420.h"
+//#include "contiki-conf.h"
 #ifdef WITH_COMPOWER
 #include "powertrace.h"
 #endif
@@ -50,7 +53,7 @@
 #include "net/uip-debug.h"
 
 #ifndef PERIOD
-#define PERIOD 20
+#define PERIOD 40
 #endif
 
 #define START_INTERVAL		(15 * CLOCK_SECOND)
@@ -90,10 +93,10 @@ send_packet(void *ptr)
          server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id);
   sprintf(&buf[data_ptr], "Hello %d from the", seq_id);
 
-  aes_ccm_message_encrypt((uint8_t *)buf, &data_len);
+  //aes_ccm_message_encrypt((uint8_t *)buf, &data_len);
   data_ptr = 1;
 
-  aes_ccm_message_decrypt((uint8_t *)buf, &data_len);
+  //aes_ccm_message_decrypt((uint8_t *)buf, &data_len);
 //  PRINTF("before: ");
 //  for(i=0; i<24; i++) PRINTF("%.2x",buf[i]);
 //  PRINTF("\n");
@@ -184,6 +187,8 @@ PROCESS_THREAD(udp_client_process, ev, data)
 
   PROCESS_PAUSE();
 
+  SENSORS_ACTIVATE(button_sensor);
+
   set_global_address();
   
   PRINTF("UDP client process started\n");
@@ -212,6 +217,11 @@ PROCESS_THREAD(udp_client_process, ev, data)
     PROCESS_YIELD();
     if(ev == tcpip_event) {
       tcpip_handler();
+    } else if (ev == sensors_event && data == &button_sensor) {
+    	PRINTF("Erase keys\n");
+    	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
+    	hasKeyIs_1 = 0;
+    	cc2420_init();
     }
     
     if(etimer_expired(&periodic)) {

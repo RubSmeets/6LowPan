@@ -48,10 +48,10 @@
 
 extern  uint8_t  hasKeyIs_1;
 
-#define ENABLE_CBC_LINK_SECURITY 0
+#define ENABLE_CBC_LINK_SECURITY 1
 #define ENABLE_CCM_LINK_SECURITY 0
 #define ENABLE_CTR_LINK_SECURITY 0
-#define ENABLE_CCM_APPLICATION	 1
+#define ENABLE_CCM_APPLICATION	 0
 
 /* Specify a minimum packet size for 6lowpan compression to be
    enabled. This is needed for ContikiMAC, which needs packets to be

@@ -237,7 +237,7 @@ static volatile uint8_t contikimac_keep_radio_on = 0;
 static volatile unsigned char we_are_sending = 0;
 static volatile unsigned char radio_is_on = 0;
 
-#define DEBUG 0
+#define DEBUG 1
 #if DEBUG
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
@@ -586,13 +586,14 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
       return MAC_TX_COLLISION;
     }
   } else {
+#if ENABLE_CBC_LINK_SECURITY
 	if(!hasKeyIs_1) {
 		/* Clear buffer */
 		packetbuf_clear();
 		packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &rimeaddr_null);
 		is_broadcast = 1;
-	}
-	else {
+	} else {
+#endif
 #if UIP_CONF_IPV6
 		PRINTDEBUG("contikimac: send unicast to %02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[0],
@@ -608,7 +609,9 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[0],
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[1]);
 #endif /* UIP_CONF_IPV6 */
+#if ENABLE_CBC_LINK_SECURITY
 	}
+#endif
   }
 
 #if !NETSTACK_CONF_BRIDGE_MODE
@@ -642,9 +645,13 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
   }
   hdrlen += sizeof(struct hdr);
 #else
-  /* Create hello packet */
-  create_hello((uint8_t *)packetbuf_dataptr());
-  packetbuf_set_datalen(2);
+#if ENABLE_CBC_LINK_SECURITY
+  if(!hasKeyIs_1) {
+	  /* Create hello packet */
+	  create_hello((uint8_t *)packetbuf_dataptr());
+	  packetbuf_set_datalen(HELLO_PACKETSIZE);
+  }
+#endif
   /* Create the MAC header for the data packet. */
   hdrlen = NETSTACK_FRAMER.create();
   if(hdrlen < 0) {
@@ -1044,20 +1051,30 @@ input_packet(void)
       compower_clear(&current_packet);
 #endif /* CONTIKIMAC_CONF_COMPOWER */
 
+#if ENABLE_CBC_LINK_SECURITY
       /* Check if we have keys */
       if(!hasKeyIs_1) {
     	  if(packetbuf_datalen() == HELLO_REPLY_PACKETSIZE) {
     		  /* Parse input */
     		  if(parse_hello_reply((uint8_t *)packetbuf_dataptr())) {
     			  /* Parse OK */
-    			  NETSTACK_RADIO.init();
+    			  /*
+    			   * Inplaats van init() doe ik hier een trucje om een reset te forceren door
+    			   * een foute bewerking op de transceiver uit te voeren (decryptie commando
+    			   * terwijl er geen security is geconfigureerd) Dit is geen mooie oplosssing!!!!
+    			   */
+    			  hasKeyIs_1 = 1;
+    			  //NETSTACK_RADIO.init(); !!!!!
     		  }
     	  }
       }
       else {
+#endif
 		  PRINTDEBUG("contikimac: data (%u)\n", packetbuf_datalen());
 		  NETSTACK_MAC.input();
+#if ENABLE_CBC_LINK_SECURITY
       }
+#endif
       return;
     } else {
       PRINTDEBUG("contikimac: data not for us\n");

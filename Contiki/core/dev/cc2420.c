@@ -82,18 +82,18 @@
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
-#define PRINTF(...) do {} while (0)
+#define PRINTF(...) printf(__VA_ARGS__)
 #endif
 
-#define DEBUG_SEC 0
+#define DEBUG_SEC 1
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
-#define PRINTFSEC(...)
+#define PRINTFSEC(...) printf(__VA_ARGS__)
 #define PRINTFSECAPP(...) printf(__VA_ARGS__)
 #else
-#define PRINTFSEC(...)
+#define PRINTFSEC(...) do {} while (0)
 #define PRINTFSECAPP(...)
 #endif
 
@@ -150,13 +150,13 @@ static int pending_packet(void);
 static int cc2420_cca(void);
 /*static int detected_energy(void);*/
 
+uint8_t  hasKeyIs_1;
 #if ENABLE_CBC_LINK_SECURITY
-
+static uint8_t mic_len;
 inline void cc2420_initLinkLayerSec(void);
 #endif
 
 #if ENABLE_CCM_APPLICATION
-uint8_t  hasKeyIs_1;
 
 #define APP_MIC_LEN 8
 #define CC2420_SEC_TXKEYSEL_1 (1<<6)
@@ -507,7 +507,7 @@ cc2420_prepare(const void *payload, unsigned short payload_len)
 
 #if ENABLE_CBC_LINK_SECURITY
   /* Extend total length with MIC and increment framecounter */
-  total_len = payload_len + MIC_LEN + AUX_LEN; //8 Byte MIC
+  total_len = payload_len + mic_len + AUX_LEN; //8 Byte MIC
   PRINTFSEC("Pay_len: %d, tot_len: %d\n", payload_len, total_len);
 #else
   total_len = payload_len + AUX_LEN;
@@ -749,8 +749,10 @@ cc2420_read(void *buf, unsigned short bufsize)
 #endif
 
 #if ENABLE_CBC_LINK_SECURITY
-  strobe(CC2420_SRXDEC);
-  BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
+  if(hasKeyIs_1) {
+	  strobe(CC2420_SRXDEC);
+	  BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
+  }
 #endif
 
   getrxbyte(&len);
@@ -779,18 +781,21 @@ cc2420_read(void *buf, unsigned short bufsize)
   }
 
 #if ENABLE_CBC_LINK_SECURITY
-  getrxdata(buf, len - AUX_LEN - MIC_LEN);
-  uint8_t mic_code[MIC_LEN];
-  getrxdata(mic_code, MIC_LEN);
-  if(mic_code[7] != 0x00)
-  {
-	  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
-	  flushrx();
-	  RIMESTATS_ADD(badsynch);
-	  RELEASE_LOCK();
-	  return 0;
-  } else {
-	  PRINTFSEC("cc2420: Authentication OK\n");
+  getrxdata(buf, len - AUX_LEN - mic_len);
+
+  if(hasKeyIs_1) {
+	  uint8_t mic_code[mic_len];
+	  getrxdata(mic_code, mic_len);
+	  if(mic_code[mic_len-1] != 0x00)
+	  {
+		  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
+		  flushrx();
+		  RIMESTATS_ADD(badsynch);
+		  RELEASE_LOCK();
+		  return 0;
+	  } else {
+		  PRINTFSEC("cc2420: Authentication OK\n");
+	  }
   }
 #else
   getrxdata(buf, len - AUX_LEN);
@@ -805,7 +810,7 @@ cc2420_read(void *buf, unsigned short bufsize)
   buf_temp = (uint8_t *)buf;
   PRINTFSEC("R_A ");
   PRINTFSEC("%.2X ", len);
-  for(p = 0; p < len-AUX_LEN-8; p++){PRINTFSEC("%.2x", buf_temp[p]);}
+  for(p = 0; p < len-AUX_LEN; p++){PRINTFSEC("%.2x", buf_temp[p]);}
   PRINTFSEC(" ");
   for(p = 0; p < FOOTER_LEN; p++){PRINTFSEC("%.2x", footer[p]);}
   PRINTFSEC("\n");
@@ -857,7 +862,7 @@ cc2420_read(void *buf, unsigned short bufsize)
   }
 
 #if ENABLE_CBC_LINK_SECURITY
-  return len - AUX_LEN - MIC_LEN;
+  return len - AUX_LEN - mic_len;
 #else
   return len - AUX_LEN;
 #endif
@@ -1007,12 +1012,19 @@ cc2420_initLinkLayerSec(void)
 	if(!(sum))	{
 		/* No sensor key present */
 		hasKeyIs_1 = 0;
+		mic_len = 0;
+		/* Set security control register 0 */
+		reg = getreg(CC2420_SECCTRL0);
+		reg &= ~RXFIFO_PROTECTION;
+		setreg(CC2420_SECCTRL0, reg);
+
 		PRINTFSEC("cc2420: No Sensor key present\n");
 		return;
 	}
 
 	/* Enable key material */
 	hasKeyIs_1 = 1;
+	mic_len = MIC_LEN;
 	PRINTFSEC("cc2420: Key OK ");
 	for(i=0; i<CC2420RAM_SEC_LEN; i++) PRINTFSEC("%.2X",network_key[i]);
 	PRINTFSEC("\n");
