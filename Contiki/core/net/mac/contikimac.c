@@ -237,7 +237,7 @@ static volatile uint8_t contikimac_keep_radio_on = 0;
 static volatile unsigned char we_are_sending = 0;
 static volatile unsigned char radio_is_on = 0;
 
-#define DEBUG 1
+#define DEBUG 0
 #if DEBUG
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
@@ -690,6 +690,9 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
 
   if(!is_broadcast && !is_receiver_awake) {
 #if WITH_PHASE_OPTIMIZATION
+  /*
+   * #HAXXX: changed conditions to force sent of packet here.!!
+   */
     ret = phase_wait(&phase_list, packetbuf_addr(PACKETBUF_ADDR_RECEIVER),
                      CYCLE_TIME, GUARD_TIME,
                      mac_callback, mac_callback_ptr, buf_list);
@@ -701,8 +704,6 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
     }
 #endif /* WITH_PHASE_OPTIMIZATION */ 
   }
-  
-
 
   /* By setting we_are_sending to one, we ensure that the rtimer
      powercycle interrupt do not interfere with us sending the packet. */
@@ -723,7 +724,6 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
   /* Switch off the radio to ensure that we didn't start sending while
      the radio was doing a channel check. */
   off();
-
 
   strobes = 0;
 
@@ -829,6 +829,7 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
                            NETSTACK_RADIO.channel_clear() == 0)) {
         uint8_t ackbuf[ACK_LEN];
         wt = RTIMER_NOW();
+
         while(RTIMER_CLOCK_LT(RTIMER_NOW(), wt + AFTER_ACK_DETECTECT_WAIT_TIME)) { }
 
         len = NETSTACK_RADIO.read(ackbuf, ACK_LEN);

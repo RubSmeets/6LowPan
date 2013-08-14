@@ -82,16 +82,17 @@
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
-#define PRINTF(...) printf(__VA_ARGS__)
+#define PRINTF(...)
 #endif
 
-#define DEBUG_SEC 1
+#define DEBUG_SEC 0
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
 #define PRINTFSEC(...) printf(__VA_ARGS__)
 #define PRINTFSECAPP(...) printf(__VA_ARGS__)
+#define PRINTF(...) printf(__VA_ARGS__)
 #else
 #define PRINTFSEC(...) do {} while (0)
 #define PRINTFSECAPP(...)
@@ -749,7 +750,12 @@ cc2420_read(void *buf, unsigned short bufsize)
 #endif
 
 #if ENABLE_CBC_LINK_SECURITY
-  if(hasKeyIs_1) {
+  /*
+   * Check bufsize to know if we are waiting for ACK-packet
+   * these packets aren't encrypted and give errors when performing
+   * decryption.
+   */
+  if(hasKeyIs_1 && (bufsize != 3)) {
 	  strobe(CC2420_SRXDEC);
 	  BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
   }
@@ -781,22 +787,31 @@ cc2420_read(void *buf, unsigned short bufsize)
   }
 
 #if ENABLE_CBC_LINK_SECURITY
-  getrxdata(buf, len - AUX_LEN - mic_len);
+  /*
+   * Check if we are receiving an ACK-packet. They don't have
+   * a MIC message appended.
+   */
+  if(bufsize != 3) {
+	  getrxdata(buf, len - AUX_LEN - mic_len);
 
-  if(hasKeyIs_1) {
-	  uint8_t mic_code[mic_len];
-	  getrxdata(mic_code, mic_len);
-	  if(mic_code[mic_len-1] != 0x00)
-	  {
-		  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
-		  flushrx();
-		  RIMESTATS_ADD(badsynch);
-		  RELEASE_LOCK();
-		  return 0;
-	  } else {
-		  PRINTFSEC("cc2420: Authentication OK\n");
+	  if(hasKeyIs_1) {
+		  uint8_t mic_code[mic_len];
+		  getrxdata(mic_code, mic_len);
+		  if(mic_code[mic_len-1] != 0x00)
+		  {
+			  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
+			  flushrx();
+			  RIMESTATS_ADD(badsynch);
+			  RELEASE_LOCK();
+			  return 0;
+		  } else {
+			  PRINTFSEC("cc2420: Authentication OK\n");
+		  }
 	  }
+  } else {
+	  getrxdata(buf, len - AUX_LEN);
   }
+
 #else
   getrxdata(buf, len - AUX_LEN);
 #endif
@@ -862,7 +877,15 @@ cc2420_read(void *buf, unsigned short bufsize)
   }
 
 #if ENABLE_CBC_LINK_SECURITY
-  return len - AUX_LEN - mic_len;
+  /*
+   * ACK-packet doens't have MIC message appended. Therefore
+   * we don't need to subtract the length from the total len.
+   */
+  if(bufsize != 3) {
+	  return len - AUX_LEN - mic_len;
+  } else {
+	  return len - AUX_LEN;
+  }
 #else
   return len - AUX_LEN;
 #endif
