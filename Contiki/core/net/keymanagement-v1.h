@@ -40,6 +40,8 @@
 #ifndef KEYMANAGEMENT_V1_H_
 #define KEYMANAGEMENT_V1_H_
 
+void keymanagement_init(void);
+
 enum keymanagement_flags {
   /**< The key management layer encryption was OK. */
   ENCRYPT_OK,

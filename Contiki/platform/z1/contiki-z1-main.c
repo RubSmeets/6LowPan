@@ -47,6 +47,10 @@
 #include "dev/adxl345.h"
 #include "sys/clock.h"
 
+#if ENABLE_CCM_APPLICATION
+#include "keymanagement-v1.h"
+#endif
+
 #if WITH_UIP6
 #include "net/uip-ds6.h"
 #endif /* WITH_UIP6 */
@@ -413,6 +417,10 @@ main(int argc, char **argv)
 
   print_processes(autostart_processes);
   autostart_start(autostart_processes);
+
+#if ENABLE_CCM_APPLICATION
+  keymanagement_init();
+#endif
 
   /*
    * This is the scheduler loop.

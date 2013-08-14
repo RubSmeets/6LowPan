@@ -10,6 +10,8 @@
 #include "net/packetbuf.h"
 #include "net/uip-udp-packet.h"
 
+#include <string.h>
+
 #define DEBUG_SEC 1
 #if DEBUG_SEC
 #include <stdio.h>
@@ -59,7 +61,7 @@ void
 keymanagement_init(void)
 {
 	uint8_t temp_sec_device_list[MAX_DEVICES * SEC_DATA_SIZE];
-	uint8_t i;
+	uint8_t i, j;
 
 	/* State to idle */
 	s->state = IDLE;
@@ -73,10 +75,14 @@ keymanagement_init(void)
 	amount_of_known_devices = 0;
 	for(i=0; i<MAX_DEVICES; i++) {
 		/* Set device_id */
-		memcpy(devices[i].remote_device_id, temp_sec_device_list[i*SEC_DATA_SIZE], DEVICE_ID_SIZE);
+//		for(j=0; j<DEVICE_ID_SIZE; j++) {
+//			devices[i].remote_device_id.u8[j] = temp_sec_device_list[(i*SEC_DATA_SIZE)+j];
+//		}
+		memcpy(&devices[i].remote_device_id.u8[0], &temp_sec_device_list[i*SEC_DATA_SIZE], DEVICE_ID_SIZE);
 
 		/* Set nonce counter (Must be equal or greater than 1) */
 		devices[i].nonce_cntr = temp_sec_device_list[(i*SEC_DATA_SIZE)+32];
+		PRINTFSECKEY("key_init device: %d nonce: %d\n",i,devices[i].nonce_cntr);
 
 		/* Reset message counter */
 		devices[i].msg_cntr = 0;
@@ -101,6 +107,8 @@ keymanagement_init(void)
 		}
 	}
 
+	PRINTFSECKEY("key_init Devices: %d\n", amount_of_known_devices);
+
 	/* Write nonce counter back to flash */
 	if(amount_of_known_devices > 0) {
 		xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
@@ -121,7 +129,6 @@ send_encrypt(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len)
 {
 	uint8_t i;
 	int dest_index;
-	uint8_t nonce_ctr;
 
 	/*
 	 * Check the state of the key management scheme
@@ -132,18 +139,18 @@ send_encrypt(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len)
 	if(s->state != IDLE) return KEY_MANAGE_BUSY;
 
 	/* Check the destination IPv6-address */
-	dest_index = search_device_id(c.ripaddr);
+	dest_index = search_device_id(&c->ripaddr);
 
 	if(dest_index < 0) {
 		/* try to add designated device */
-		if(add_device_id(c.ripaddr) < 0) {
+		if(add_device_id(&c->ripaddr) < 0) {
 			/* No space for device */
 			PRINTFSECKEY("No space to add device. tot:%d max:%d\n", amount_of_known_devices, MAX_DEVICES);
 			s->state = IDLE;
 			return NO_SPACE_FOR_DEVICE;
 		} else {
 			/* Request key for new device */
-			PRINTFSECKEY("Requesting key for: %d\n", c.ripaddr[0]);
+			PRINTFSECKEY("Requesting key for: %d\n", c->ripaddr.u8[0]);
 			devices[dest_index].key_freshness = EXPIRED;
 			s->state = REQUEST_KEY;
 			return KEY_REQUEST_TX;
@@ -158,13 +165,13 @@ send_encrypt(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len)
 	}
 
 	/* Extend data packet with nonce */
-	for(i=0; i < 4; i++) data[i] = (msg_cntr >> ((3-i)*8)) & 0xff;
-	data[4] = nonce_ctr;
+	for(i=0; i < 4; i++) data[i] = (devices[dest_index].msg_cntr >> ((3-i)*8)) & 0xff;
+	data[4] = devices[dest_index].nonce_cntr;
 
 	*data_len = *data_len + 5;
 
 	/* Encrypt message */
-	if(!cc2420_encrypt_ccm(data, &msg_cntr, &nonce_ctr, data_len)) return ENCRYPT_FAILED;
+	if(!cc2420_encrypt_ccm(data, &devices[dest_index].msg_cntr, &devices[dest_index].nonce_cntr, data_len)) return ENCRYPT_FAILED;
 
 	PRINTFSECKEY("after: ");
 	for(i=1; i<22; i++) PRINTFSECKEY("%.2x",data[i]);
@@ -178,24 +185,24 @@ send_encrypt(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len)
  * Input function																			NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
-int
-input_decrypt(uint8_t *data, uint8_t *data_len)
-{
-	uint32_t src_msg_cntr;
-	uint8_t i;
-	int src_index;
-
-	/* Check if source address is known */
-	src_index = search_device_id(...);
-
-	/* Parse message counter from source */
-	for(i=0; i<4; i++) src_msg_cntr = (uint32_t)(data[i]<<((3-i)*8));
-
-	/* Check if it is not a replay message */
-
-	/* Decrypt message */
-	cc2420_decrypt_ccm(data, &src_msg_cntr, &data[4], data_len);
-}
+//int
+//input_decrypt(uint8_t *data, uint8_t *data_len)
+//{
+//	uint32_t src_msg_cntr;
+//	uint8_t i;
+//	int src_index;
+//
+//	/* Check if source address is known */
+//	src_index = search_device_id(...);
+//
+//	/* Parse message counter from source */
+//	for(i=0; i<4; i++) src_msg_cntr = (uint32_t)(data[i]<<((3-i)*8));
+//
+//	/* Check if it is not a replay message */
+//
+//	/* Decrypt message */
+//	cc2420_decrypt_ccm(data, &src_msg_cntr, &data[4], data_len);
+//}
 
 /*-----------------------------------------------------------------------------------*/
 /**
@@ -228,7 +235,7 @@ search_device_id(uip_ipaddr_t* curr_device_id)
 	uint8_t i;
 
 	for(i = 0; i < amount_of_known_devices; i++) {
-		if(uip_ipaddr_cmp(curr_device_id , devices[i].remote_device_id)) {
+		if(uip_ipaddr_cmp(curr_device_id , &devices[i].remote_device_id)) {
 			index = i;
 			break;
 		}
@@ -248,7 +255,7 @@ add_device_id(uip_ipaddr_t* curr_device_id)
 
 	if(amount_of_known_devices < MAX_DEVICES) {
 		/* Add device to known devices */
-		uip_ipaddr_copy(devices[amount_of_known_devices].remote_device_id, curr_device_id);
+		uip_ipaddr_copy(&devices[amount_of_known_devices].remote_device_id, curr_device_id);
 		index = amount_of_known_devices;
 		amount_of_known_devices++;
 	}
@@ -264,12 +271,12 @@ add_device_id(uip_ipaddr_t* curr_device_id)
 static void
 get_sec_data_at_index(int index)
 {
-	uint8_t temp_sec_data[SECURITY_DATA_SIZE];
-
-	/* Read Session key from flash memory */
-	xmem_pread(temp_sec_data, SECURITY_DATA_SIZE, APP_SECURITY_DATA);
-
-	/* Set the application session key */
-	CC2420_WRITE_RAM_REV(&app_sec_data[1], CC2420RAM_KEY1, 16);
+//	uint8_t temp_sec_data[SECURITY_DATA_SIZE];
+//
+//	/* Read Session key from flash memory */
+//	xmem_pread(temp_sec_data, SECURITY_DATA_SIZE, APP_SECURITY_DATA);
+//
+//	/* Set the application session key */
+//	CC2420_WRITE_RAM_REV(&app_sec_data[1], CC2420RAM_KEY1, 16);
 
 }

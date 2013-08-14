@@ -31,4 +31,5 @@ uip.c						\
 uip6.c						\
 uip_arp.c					\
 uiplib.c					\
-sec-arp.c
+sec-arp.c					\
+keymanagement-v1.c

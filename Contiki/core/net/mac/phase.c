@@ -228,16 +228,19 @@ phase_wait(struct phase_list *list,
     }
 
     ctimewait = (CLOCK_SECOND * (wait - guard_time)) / RTIMER_ARCH_SECOND;
+
+#if 1//ENABLE_CBC_LINK_SECURITY
     /*
      *     PRINTF("ctimewait: %d", ctimewait);
      *
      * #HAXXX:  CHANGED the condition to force the packet to be sent out.
      * 			uncomment to revert to previous operation.
      */
-
     if(ctimewait < PHASE_DEFER_THRESHOLD) {
-    //if(ctimewait > PHASE_DEFER_THRESHOLD) {
-      struct phase_queueitem *p;
+#else
+    if(ctimewait > PHASE_DEFER_THRESHOLD) {
+#endif
+    	struct phase_queueitem *p;
       
       p = memb_alloc(&queued_packets_memb);
       if(p != NULL) {
