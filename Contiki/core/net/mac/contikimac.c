@@ -50,6 +50,8 @@
 #include "sys/compower.h"
 #include "sys/pt.h"
 #include "sys/rtimer.h"
+/* Include watchdog for global reset */
+#include "dev/watchdog.h"
 
 
 #include <string.h>
@@ -1059,13 +1061,8 @@ input_packet(void)
     		  /* Parse input */
     		  if(parse_hello_reply((uint8_t *)packetbuf_dataptr())) {
     			  /* Parse OK */
-    			  /*
-    			   * Inplaats van init() doe ik hier een trucje om een reset te forceren door
-    			   * een foute bewerking op de transceiver uit te voeren (decryptie commando
-    			   * terwijl er geen security is geconfigureerd) Dit is geen mooie oplosssing!!!!
-    			   */
-    			  hasKeyIs_1 = 1;
-    			  //NETSTACK_RADIO.init(); !!!!!
+    			  /* Reset interrupt flag register to cause reboot */
+    		      watchdog_reboot();
     		  }
     	  }
       }

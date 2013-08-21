@@ -77,6 +77,7 @@
 #define FOOTER1_CRC_OK      0x80
 #define FOOTER1_CORRELATION 0x7f
 
+/*
 #define DEBUG 0
 #if DEBUG
 #include <stdio.h>
@@ -84,6 +85,7 @@
 #else
 #define PRINTF(...)
 #endif
+*/
 
 #define DEBUG_SEC 0
 #if DEBUG_SEC
@@ -91,11 +93,12 @@
 uint8_t *buf_temp;
 uint8_t p;
 #define PRINTFSEC(...) printf(__VA_ARGS__)
-#define PRINTFSECAPP(...) printf(__VA_ARGS__)
-#define PRINTF(...) printf(__VA_ARGS__)
+#define PRINTFSECAPP(...)
+#define PRINTF(...)
 #else
 #define PRINTFSEC(...) do {} while (0)
 #define PRINTFSECAPP(...)
+#define PRINTF(...)
 #endif
 
 #define DEBUG_LEDS DEBUG
@@ -166,7 +169,7 @@ inline void cc2420_initLinkLayerSec(void);
 #define TX 0
 
 static void setAssociatedData(unsigned short RX_nTX, unsigned short hdrlen);
-static void setNonce(unsigned short RX_nTX, uint32_t *msg_ctr, uint8_t *p_nonce_ctr);
+static void setNonce(unsigned short RX_nTX, uint8_t *p_address_nonce, uint32_t *msg_ctr, uint8_t *p_nonce_ctr);
 #endif
 
 signed char cc2420_last_rssi;
@@ -804,8 +807,6 @@ cc2420_read(void *buf, unsigned short bufsize)
 			  RIMESTATS_ADD(badsynch);
 			  RELEASE_LOCK();
 			  return 0;
-		  } else {
-			  PRINTFSEC("cc2420: Authentication OK\n");
 		  }
 	  }
   } else {
@@ -1024,12 +1025,12 @@ cc2420_initLinkLayerSec(void)
 {
 	uint8_t  network_key[16];
 	uint16_t reg;
+	uint8_t sum, i;
 
 	/* Read security data from Flash mem */
 	xmem_pread(network_key, 16, MAC_SECURITY_DATA);
 
 	/* Check if we have a network key */
-	uint8_t sum, i;
 	sum = 0;
 	for(i=CC2420RAM_SEC_LEN; i>0; i--) {sum |= network_key[i-1];}
 	if(!(sum))	{
@@ -1085,21 +1086,23 @@ setAssociatedData(unsigned short RX_nTX, unsigned short hdrlen)
 }
 /*---------------------------------------------------------------------------*/
 static void
-setNonce(unsigned short RX_nTX, uint32_t *p_msg_ctr, uint8_t *p_nonce_ctr)
+setNonce(unsigned short RX_nTX, uint8_t *p_address_nonce, uint32_t *p_msg_ctr, uint8_t *p_nonce_ctr)
 {
 	uint8_t nonce[16];
-	uint8_t ieee_addr_temp[8];
+	//uint8_t ieee_addr_temp[8];
 
 	/* Set flags:
 	 *		CTR flag (0 0) -> reserved for future expansion
 	 *		CBC flag (0 1) -> 7-bit reserved, 6-bit Adata is 1 in my case (not everything is encrypted)
 	 *		L (1) 		   -> n+q=15 (n=13)(q=2) l=[q-1]3 | n is the nonce length (see standard)
 	 */
-	if(!RX_nTX) CC2420_READ_RAM_REV(ieee_addr_temp, CC2420RAM_IEEEADDR, 8);
-	else 		CC2420_READ_RAM_REV(ieee_addr_temp, CC2420RAM_IEEEADDR, 8);//memcpy(&ieee_addr_temp[0], ) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!nog juist doen!!!!
+	//if(!RX_nTX) CC2420_READ_RAM_REV(ieee_addr_temp, CC2420RAM_IEEEADDR, 8);
+	//else 		CC2420_READ_RAM_REV(ieee_addr_temp, CC2420RAM_IEEEADDR, 8);//memcpy(&ieee_addr_temp[0], ) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!nog juist doen!!!!
+	//memcpy(&ieee_addr_temp[0], p_address_nonce, 8);
 
 	nonce[0] =  0x00 | 0x01 | 0x08;
-	memcpy(nonce+1, ieee_addr_temp, 8);		/* Setting source address */
+	//memcpy(nonce+1, ieee_addr_temp, 8);		/* Setting source address */
+	memcpy(nonce+1, p_address_nonce, 8);	/* Setting source address */
 	nonce[9] = 0xFF & (*p_msg_ctr>>24);		/* Setting frame counter */
 	nonce[10] = 0xFF & (*p_msg_ctr>>16);
 	nonce[11] = 0xFF & (*p_msg_ctr>>8);
@@ -1119,7 +1122,7 @@ setNonce(unsigned short RX_nTX, uint32_t *p_msg_ctr, uint8_t *p_nonce_ctr)
 }
 /*---------------------------------------------------------------------------*/
 int
-cc2420_decrypt_ccm(uint8_t *data, uint32_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len)
+cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len)
 {
 	unsigned int stats;
 	uint16_t reg_old, reg;
@@ -1137,7 +1140,7 @@ cc2420_decrypt_ccm(uint8_t *data, uint32_t *src_msg_cntr, uint8_t *src_nonce_cnt
 	setAssociatedData(RX, 5);
 
 	/* Set Nonce Rx */
-	setNonce(RX, src_msg_cntr, src_nonce_cntr);
+	setNonce(RX, address_nonce, src_msg_cntr, src_nonce_cntr);
 
 	/* Flush the RXFIFO */
 	flushrx();
@@ -1162,7 +1165,7 @@ cc2420_decrypt_ccm(uint8_t *data, uint32_t *src_msg_cntr, uint8_t *src_nonce_cnt
 }
 /*---------------------------------------------------------------------------*/
 int
-cc2420_encrypt_ccm(uint8_t *data, uint32_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len)
+cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len)
 {
 	unsigned int stats;
 	uint8_t  tot_len;
@@ -1182,7 +1185,7 @@ cc2420_encrypt_ccm(uint8_t *data, uint32_t *msg_cntr, uint8_t *nonce_cntr, uint8
 	setAssociatedData(TX, 5);
 
 	/* Set Nonce tx */
-	setNonce(TX, msg_cntr, nonce_cntr);
+	setNonce(TX, address_nonce, msg_cntr, nonce_cntr);
 
 	/* Flush the TXFIFO */
 	strobe(CC2420_SFLUSHTX);

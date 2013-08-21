@@ -40,9 +40,13 @@
 #ifndef KEYMANAGEMENT_V1_H_
 #define KEYMANAGEMENT_V1_H_
 
-void keymanagement_init(void);
+#include "contiki-net.h"
 
-enum keymanagement_flags {
+void keymanagement_init(void);
+short keymanagement_creat_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len);
+int keymanagement_decrypt_packet(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len);
+
+typedef enum {
   /**< The key management layer encryption was OK. */
   ENCRYPT_OK,
 
@@ -64,13 +68,13 @@ enum keymanagement_flags {
   /**< Key management is busy. */
   KEY_MANAGE_BUSY,
 
-};
+} keymanagement_flags_type_t;
 
-enum keyfreshness_flags {
+typedef enum {
 	/**< The session key is still valid and fresh */
 	FRESH 		= 0x00,
 	/**< The session key has expired */
 	EXPIRED 	= 0x01,
-};
+} keyfreshness_flags_type_t;
 
 #endif /* KEYMANAGEMENT_V1_H_ */

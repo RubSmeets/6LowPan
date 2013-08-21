@@ -86,9 +86,8 @@ typedef struct {
 #endif
 
 #if ENABLE_CCM_APPLICATION
-int cc2420_encrypt_ccm(uint8_t *data, uint32_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len);
-int cc2420_decrypt_ccm(uint8_t *data, uint32_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len);
-//Nog controleren of de nonce niet lager is als de opgeslagen nonce!!
+int cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len);
+int cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len);
 #endif
 
 /**

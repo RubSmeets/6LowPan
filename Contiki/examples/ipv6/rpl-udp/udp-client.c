@@ -66,6 +66,8 @@
 static struct uip_udp_conn *client_conn;
 static uip_ipaddr_t server_ipaddr;
 
+uint8_t temp_sec_device_list[66];
+
 /*---------------------------------------------------------------------------*/
 PROCESS(udp_client_process, "UDP client process");
 AUTOSTART_PROCESSES(&udp_client_process);
@@ -98,6 +100,8 @@ send_packet(void *ptr)
   //aes_ccm_message_encrypt((uint8_t *)buf, &data_len);
   data_ptr = 1;
 
+  data_ptr = keymanagement_creat_encrypted_packet(client_conn, (uint8_t *)buf, &data_len);
+  PRINTF("result: %d\n", data_ptr);
   //aes_ccm_message_decrypt((uint8_t *)buf, &data_len);
 //  PRINTF("before: ");
 //  for(i=0; i<24; i++) PRINTF("%.2x",buf[i]);
@@ -220,10 +224,23 @@ PROCESS_THREAD(udp_client_process, ev, data)
     if(ev == tcpip_event) {
       tcpip_handler();
     } else if (ev == sensors_event && data == &button_sensor) {
-    	PRINTF("Erase keys\n");
-    	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
-    	hasKeyIs_1 = 0;
-    	cc2420_init();
+//    	PRINTF("Erase keys\n");
+//    	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
+//    	hasKeyIs_1 = 0;
+//    	cc2420_init();
+
+//    	uint8_t i;
+//    	for(i=0; i<16; i++) {temp_sec_device_list[i+16] = 8;}
+//    	temp_sec_device_list[15] = 2;
+//    	temp_sec_device_list[32] = 1;
+//    	for(i=0; i<16; i++) {temp_sec_device_list[i+49] = 9;}
+//    	temp_sec_device_list[48] = 3;
+//    	temp_sec_device_list[65] = 4;
+//
+//
+//    	PRINTF("App mem set\n");
+//    	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
+//    	xmem_pwrite(temp_sec_device_list, 66, APP_SECURITY_DATA);
     }
     
     if(etimer_expired(&periodic)) {
