@@ -89,23 +89,23 @@ send_packet(void *ptr)
 {
   static int seq_id;
   char buf[MAX_PAYLOAD_LEN];
-  uint8_t data_ptr = 5;
-  uint8_t data_len = 16;
+  uint8_t data_ptr = 0;
+  uint8_t data_len = 9;
 
   seq_id++;
   PRINTF("DATA send to %d 'Hello %d'\n",
          server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id);
-  sprintf(&buf[data_ptr], "Hello %d from the", seq_id);
+  //sprintf(&buf[data_ptr], "Hello %d from the", seq_id);
+  sprintf(&buf[data_ptr], "XXXXXXXX%d", seq_id);
 
-  //aes_ccm_message_encrypt((uint8_t *)buf, &data_len);
-  data_ptr = 1;
+  	uint8_t i;
+    PRINTF("before: ");
+    for(i=0; i<data_len; i++) PRINTF("%.2x",buf[i]);
+    PRINTF("\n");
 
   data_ptr = keymanagement_creat_encrypted_packet(client_conn, (uint8_t *)buf, &data_len);
   PRINTF("result: %d\n", data_ptr);
-  //aes_ccm_message_decrypt((uint8_t *)buf, &data_len);
-//  PRINTF("before: ");
-//  for(i=0; i<24; i++) PRINTF("%.2x",buf[i]);
-//  PRINTF("\n");
+
 //
 //  result = cc2420_encrypt_ccm((uint8_t *)buf, 24);
 //  if(!result) PRINTF("Encryption failed: busy!\n");

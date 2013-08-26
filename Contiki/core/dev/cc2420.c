@@ -161,8 +161,6 @@ inline void cc2420_initLinkLayerSec(void);
 #endif
 
 #if ENABLE_CCM_APPLICATION
-
-#define APP_MIC_LEN 8
 #define CC2420_SEC_TXKEYSEL_1 (1<<6)
 #define CC2420_SEC_RXKEYSEL_1 (1<<5)
 #define RX 1
@@ -1125,6 +1123,7 @@ int
 cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len)
 {
 	unsigned int stats;
+	uint8_t  tot_len;
 	uint16_t reg_old, reg;
 
 	/* Check if we are receiving or encrypting */
@@ -1146,6 +1145,8 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr
 	flushrx();
 
 	/* Set RXFIFO */
+	tot_len = *data_len + 2;
+	CC2420_WRITE_RXFIFO_BUF(&tot_len, 1);
 	CC2420_WRITE_RXFIFO_BUF(data, *data_len);
 
 	setreg(CC2420_SECCTRL0, reg);
@@ -1155,6 +1156,7 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr
 	BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
 
 	/* Read RXFIFO buffer */
+	getrxbyte(&tot_len);
 	getrxdata(data, *data_len);
 
 	/* Restore security control reg 0 */
@@ -1200,14 +1202,14 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *msg_cntr, ui
 	BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
 
 	/* Read TXFIFO buffer */
-	CC2420_READ_RAM(data, CC2420RAM_TXFIFO, tot_len);
+	CC2420_READ_RAM(data, CC2420RAM_TXFIFO, tot_len-1);
 
 	/* Restore security control reg 0 */
 	setreg(CC2420_SECCTRL0, reg_old);
 	PRINTFSECAPP("cc2420: Reg 0 restore: %.2x\n",reg_old);
 
-	/* Increment message counter */
-	*msg_cntr++;
+	/* Update data_len with current value */
+	*data_len = tot_len-1;
 
 	return 1;
 }
