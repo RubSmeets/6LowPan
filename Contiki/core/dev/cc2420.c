@@ -1120,7 +1120,7 @@ setNonce(unsigned short RX_nTX, uint8_t *p_address_nonce, uint32_t *p_msg_ctr, u
 }
 /*---------------------------------------------------------------------------*/
 int
-cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len)
+cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len)
 {
 	unsigned int stats;
 	uint8_t  tot_len;
@@ -1136,10 +1136,10 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr
 	PRINTFSECAPP("cc2420: Reg 0: %.2x\n",reg);
 
 	/* Set associated data RX to 5 */
-	setAssociatedData(RX, 5);
+	setAssociatedData(RX, NONCE_SIZE);
 
 	/* Set Nonce Rx */
-	setNonce(RX, address_nonce, src_msg_cntr, src_nonce_cntr);
+	setNonce(RX, address_nonce, (uint32_t*)src_msg_cntr, src_nonce_cntr);
 
 	/* Flush the RXFIFO */
 	flushrx();
@@ -1167,7 +1167,7 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *src_msg_cntr
 }
 /*---------------------------------------------------------------------------*/
 int
-cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len)
+cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len)
 {
 	unsigned int stats;
 	uint8_t  tot_len;
@@ -1184,10 +1184,10 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint32_t *msg_cntr, ui
 	PRINTFSECAPP("cc2420: Reg 0: %.2x\n",reg);
 
 	/* Set associated data TX to 5 */
-	setAssociatedData(TX, 5);
+	setAssociatedData(TX, NONCE_SIZE);
 
 	/* Set Nonce tx */
-	setNonce(TX, address_nonce, msg_cntr, nonce_cntr);
+	setNonce(TX, address_nonce, (uint32_t*)msg_cntr, nonce_cntr);
 
 	/* Flush the TXFIFO */
 	strobe(CC2420_SFLUSHTX);

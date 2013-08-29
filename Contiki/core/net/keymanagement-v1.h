@@ -58,6 +58,8 @@ short keymanagement_decrypt_packet(struct uip_udp_conn *c, uint8_t *data, uint8_
 //#define NO_SPACE_FOR_DEVICE 5
 //#define KEY_MANAGE_BUSY 	6
 
+typedef uint16_t keyExNonce_type_t;
+
 typedef enum {
   /**< The key management layer encryption was OK. */
   ENCRYPT_OK,
@@ -85,6 +87,9 @@ typedef enum {
 
   /**< Replay message */
   REPLAY_MESSAGE,
+
+  /**< Authentication failed */
+  AUTHENTICATION_FAILED,
 
 } keymanagement_flags_type_t;
 

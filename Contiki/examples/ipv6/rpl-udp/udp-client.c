@@ -90,13 +90,13 @@ send_packet(void *ptr)
   static int seq_id;
   char buf[MAX_PAYLOAD_LEN];
   uint8_t data_ptr = 0;
-  uint8_t data_len = 9;
+  uint8_t data_len = 33;
 
   seq_id++;
   PRINTF("DATA send to %d 'Hello %d'\n",
          server_ipaddr.u8[sizeof(server_ipaddr.u8) - 1], seq_id);
   //sprintf(&buf[data_ptr], "Hello %d from the", seq_id);
-  sprintf(&buf[data_ptr], "XXXXXXXX%d", seq_id);
+  sprintf(&buf[data_ptr], "XXXXXXXXOOOOOOOOXXXXXXXXOOOOOOOO%d", seq_id);
 
   	uint8_t i;
     PRINTF("before: ");
@@ -105,7 +105,6 @@ send_packet(void *ptr)
 
   data_ptr = keymanagement_creat_encrypted_packet(client_conn, (uint8_t *)buf, &data_len);
   PRINTF("result: %d\n", data_ptr);
-
 //
 //  result = cc2420_encrypt_ccm((uint8_t *)buf, 24);
 //  if(!result) PRINTF("Encryption failed: busy!\n");

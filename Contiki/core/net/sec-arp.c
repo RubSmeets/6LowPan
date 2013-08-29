@@ -7,6 +7,8 @@
 #include "net/sec-arp.h"
 #include "dev/xmem.h"
 
+#include <string.h>
+
 #define DEBUG 0
 #if DEBUG
 #include <stdio.h>
@@ -15,9 +17,15 @@
 #define PRINTF(...) do {} while (0)
 #endif
 
+#define LINKLAYER_OFFSET	2
+#define APPLAYER_OFFSET		19
+#define SEC_DATA_SIZE 		33
+
 /*-----------------------------------------------------------------------------------*/
 /**
  * Create Hello packet CODE
+ *
+ * format: | message_type(1) | operation(1) |
  */
 /*-----------------------------------------------------------------------------------*/
 void
@@ -64,12 +72,14 @@ create_hello(uint8_t *buf)
 /**
  * Parse hello reply packet
  *
- * fromat: | network key(16) | link_nonce_cntr(1) | sensor key(16) |
+ * format: | message_type(1) | operation(1) | network key(16) | link_nonce_cntr(1) | edge-router id(16) | sensor key(16) |
  */
 /*-----------------------------------------------------------------------------------*/
 short
 parse_hello_reply(uint8_t *buf)
 {
+	uint8_t temp_buf[SEC_DATA_SIZE];
+
 	PRINTF("sec-arp: parse\n");
 
 	if(buf[0] != HELLO_PACKET) {
@@ -80,8 +90,21 @@ parse_hello_reply(uint8_t *buf)
 		return 0;
 	}
 
+	memcpy(&temp_buf[0], &buf[APPLAYER_OFFSET], SEC_DATA_SIZE-1);
+	temp_buf[SEC_DATA_SIZE-1] = 0x01;
+
+
+	/* Write link-layer security data to flash */
 	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
-	xmem_pwrite(&buf[2], 33, MAC_SECURITY_DATA);
+	xmem_pwrite(&buf[LINKLAYER_OFFSET], 17, MAC_SECURITY_DATA);
+
+	/* Write application-layer security data to flash */
+	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
+	xmem_pwrite(&temp_buf[0], SEC_DATA_SIZE, APP_SECURITY_DATA);
+
+	/* Write nonce to flash  (clear key-exchange nonces) */
+	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_NONCE_DATA);
+	xmem_pwrite(&temp_buf[SEC_DATA_SIZE-1], 1, APP_NONCE_DATA+4);
 
 	PRINTF("sec-arp: parse OK\n");
 
