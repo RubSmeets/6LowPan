@@ -156,6 +156,7 @@ static int cc2420_cca(void);
 
 uint8_t  hasKeyIs_1;
 #if ENABLE_CBC_LINK_SECURITY
+#define ACK_PACKET_SIZE 	3
 static uint8_t mic_len;
 inline void cc2420_initLinkLayerSec(void);
 #endif
@@ -756,7 +757,7 @@ cc2420_read(void *buf, unsigned short bufsize)
    * these packets aren't encrypted and give errors when performing
    * decryption.
    */
-  if(hasKeyIs_1 && (bufsize != 3)) {
+  if(hasKeyIs_1 && (bufsize != ACK_PACKET_SIZE)) {
 	  strobe(CC2420_SRXDEC);
 	  BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
   }
@@ -792,7 +793,7 @@ cc2420_read(void *buf, unsigned short bufsize)
    * Check if we are receiving an ACK-packet. They don't have
    * a MIC message appended.
    */
-  if(bufsize != 3) {
+  if(bufsize != ACK_PACKET_SIZE) {
 	  getrxdata(buf, len - AUX_LEN - mic_len);
 
 	  if(hasKeyIs_1) {
@@ -802,7 +803,6 @@ cc2420_read(void *buf, unsigned short bufsize)
 		  {
 			  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
 			  flushrx();
-			  RIMESTATS_ADD(badsynch);
 			  RELEASE_LOCK();
 			  return 0;
 		  }
@@ -878,9 +878,9 @@ cc2420_read(void *buf, unsigned short bufsize)
 #if ENABLE_CBC_LINK_SECURITY
   /*
    * ACK-packet doens't have MIC message appended. Therefore
-   * we don't need to subtract the length from the total len.
+   * we don't need to subtract the mic-length from the total len.
    */
-  if(bufsize != 3) {
+  if(bufsize != ACK_PACKET_SIZE) {
 	  return len - AUX_LEN - mic_len;
   } else {
 	  return len - AUX_LEN;

@@ -44,10 +44,10 @@
 
 #define MAX_MESSAGE_COUNT 	0xFFFFFFFF
 #define MAX_NONCE_COUNT		0xFF
-#define MAX_MESSAGE_SIZE	30
+#define MAX_MESSAGE_SIZE	50
 
 void keymanagement_init(void);
-short keymanagement_creat_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len);
+short keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len, uip_ipaddr_t *toaddr, uint16_t toport);
 short keymanagement_decrypt_packet(struct uip_udp_conn *c, uint8_t *data, uint8_t *data_len);
 
 //#define ENCRYPT_OK 			0
@@ -58,7 +58,7 @@ short keymanagement_decrypt_packet(struct uip_udp_conn *c, uint8_t *data, uint8_
 //#define NO_SPACE_FOR_DEVICE 5
 //#define KEY_MANAGE_BUSY 	6
 
-typedef uint16_t keyExNonce_type_t;
+typedef uint8_t keyExNonce_type_t;
 
 typedef enum {
   /**< The key management layer encryption was OK. */

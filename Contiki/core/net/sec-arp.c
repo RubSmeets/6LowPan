@@ -25,7 +25,7 @@
 /**
  * Create Hello packet CODE
  *
- * format: | message_type(1) | operation(1) |
+ * format: | message_type(1) | operation(1) | device id(16)
  */
 /*-----------------------------------------------------------------------------------*/
 void
