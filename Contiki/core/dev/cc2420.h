@@ -92,8 +92,8 @@ typedef struct {
 
 typedef uint16_t msgnonce_type_t;
 
-int cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len);
-int cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len);
+int cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *msg_cntr, uint8_t *nonce_cntr, uint8_t *data_len, unsigned short adata_len);
+int cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *src_msg_cntr, uint8_t *src_nonce_cntr, uint8_t *data_len, unsigned short adata_len);
 #endif
 
 /**

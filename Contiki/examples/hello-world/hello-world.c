@@ -40,16 +40,80 @@
 #include "contiki.h"
 
 #include <stdio.h> /* For printf() */
+
+uint8_t test;
+uint8_t state;
+
+
 /*---------------------------------------------------------------------------*/
 PROCESS(hello_world_process, "Hello world process");
 AUTOSTART_PROCESSES(&hello_world_process);
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(hello_world_process, ev, data)
 {
+  uint8_t i = 0;
+
   PROCESS_BEGIN();
 
   printf("Hello, world\n");
   
+  state = 0;
+
+  while(1) {
+
+	  if(test > 10) {
+		  printf("ok\n");
+	  }
+
+	  switch(state) {
+	  	  case 0:
+	  		  test = 0;
+	  		  state = 1;
+	  		  break;
+	  	  case 1:
+	  		test = 0;
+	  		  state = 2;
+	  		  break;
+	  	  case 2:
+	  		test = 0;
+	  		state = 3;
+	  		  break;
+	  	  case 3:
+	  		test = 0;
+	  		state = 4;
+	  		  break;
+	  	  case 4:
+	  		test = 0;
+	  		state = 5;
+	  		  break;
+	  	  case 5:
+	  		test = 0;
+	  		state = 6;
+	  		  break;
+	  	  case 6:
+	  		test = 0;
+	  		state = 7;
+	  		  break;
+	  	  case 7:
+	  		test = 0;
+	  		state = 8;
+	  		  break;
+	  	  case 8:
+	  		test = 0;
+	  		state = 0;
+	  		  break;
+	  	  default:
+	  		test = 0;
+	  		state = 0;
+	  		  break;
+	  }
+
+	  for(i=0; i<20; i++) {
+		  test = i;
+	  }
+
+  }
+
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
