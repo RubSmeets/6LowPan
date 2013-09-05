@@ -255,7 +255,16 @@ keymanagement_init(void)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * Output function																			NIET GETEST!
+ * Output function for the application layer to create and send an encrypted packet
+ * over a specified udp_connection.
+ *
+ * @param the connection
+ * @param the data to be encrypted
+ * @param the data length of packet
+ * @param the associated data (not encrypted but authenticated)
+ * @param the remote ip-address
+ * @param the remote udp-port
+ * @return encrypt-flags																NIET GETEST!
  */
 /*-----------------------------------------------------------------------------------*/
 short
@@ -348,7 +357,13 @@ keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * Input function																			NIET GETEST!
+ * Input function of application layer to decrypt messages
+ *
+ * @param source ip-address
+ * @param the encrypted data
+ * @param the packet length
+ * @param the associated data
+ * @return decrypt-flags																NIET GETEST!
  */
 /*-----------------------------------------------------------------------------------*/
 short
@@ -544,7 +559,9 @@ find_index_for_request(keyfreshness_flags_type_t search_option)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * Update nonce writes the new nonce of devices[index] to flash memory						NIET GETEST!
+ * Update nonce writes the new nonce of devices[index] to flash memory
+ *
+ * @param index of device																NIET GETEST!
  */
 /*-----------------------------------------------------------------------------------*/
 static void
@@ -574,7 +591,9 @@ update_nonce(uint8_t index)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * 						NIET AF!
+ *	Updates the session key and device id in the flash memory
+ *
+ *	@param current session-key															NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
 static void
@@ -596,7 +615,10 @@ update_key_and_device_id(uint8_t *sessionkey)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * key_exchange_protocol is the output function for the key-exchange protocol					NIET AF!
+ * key_exchange_protocol is the main callback (protocol) function that decides if the
+ * protocol should continue or stop.
+ *
+ * @return stop/continue																	NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
 static uint8_t
@@ -624,7 +646,8 @@ key_exchange_protocol(void)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * 					NIET AF!
+ * Key-exchange output function. Creates and sends a protocol message according
+ * to the current state.
  */
 /*-----------------------------------------------------------------------------------*/
 static void
@@ -676,7 +699,7 @@ send_key_exchange_packet(void)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * 					NIET AF!
+ *	Set keypacketbuf with init reply message							 					NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
 static void
@@ -688,7 +711,7 @@ init_reply_message(void) {
 
 /*-----------------------------------------------------------------------------------*/
 /**
- *
+ *	Set keypacketbuf with communication request message										NIET GETEST
  */
 /*-----------------------------------------------------------------------------------*/
 static void
@@ -713,7 +736,7 @@ comm_request_message(void) {
 
 /*-----------------------------------------------------------------------------------*/
 /**
- *
+ *	Set keypacketbuf with verify request message											NIET GETEST
  */
 /*-----------------------------------------------------------------------------------*/
 static void
@@ -728,7 +751,7 @@ verify_request_message(void)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- *
+ *	Set keypacketbuf with verify reply message											NIET GETEST
  */
 /*-----------------------------------------------------------------------------------*/
 static void
@@ -754,9 +777,15 @@ verify_reply_message(void)
 
 /*-----------------------------------------------------------------------------------*/
 /**
+ * The parse function dissects the incoming messages according to the
+ * current state. It also serves as next-state function for the protocol.
+ *
+ * @param udp payload data
+ * @param udp packet lenght
+ * @return failed/successful
  *
  * After specific time every step has to return to key exchange idle!
- * 					NIET AF!
+ * 																							NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
 static short
@@ -871,7 +900,11 @@ parse_packet(uint8_t *data, uint16_t len)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- * 					NIET AF!
+ *	Help function to parse the content of communication reply message.
+ *
+ *	@param pointer to data
+ *	@param pointer to current device id
+ *	@return failed/successful																NIET AF!
  */
 /*-----------------------------------------------------------------------------------*/
 #define REMOTE_ID_OFFSET		23
