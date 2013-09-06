@@ -27,7 +27,7 @@
 #define UDP_CLIENT_SEC_PORT 5446
 #define UDP_SERVER_SEC_PORT 5444
 
-#define MAX_DEVICES 			2
+#define MAX_DEVICES 			3
 #define DEVICE_NOT_FOUND 		-1
 #define AUTHENTICATION_SUCCES	0x00
 
@@ -657,7 +657,7 @@ send_key_exchange_packet(void)
 	tot_len = 1;
 
 	/* Check if still need to send */
-	if(send_tries > MAX_SEND_TRIES) return;
+	if(send_tries >= MAX_SEND_TRIES) return;
 
 	switch(key_exchange_state) {
 		case S_INIT_REPLY:	/* | request_nonce(3) | */
@@ -819,10 +819,10 @@ parse_packet(uint8_t *data, uint16_t len)
 						return 0;
 					}
 				}
-
 				/* If there is a valid request we need to reply */
 				key_exchange_state = S_INIT_REPLY;
-
+				/* Send tries reset */
+				send_tries = 0;
 				/* Timer reset */
 				reset_key_exchange_timer();
 
@@ -836,6 +836,10 @@ parse_packet(uint8_t *data, uint16_t len)
 				memcpy(&remote_request_nonce[0], &data[1], 3);
 
 				key_exchange_state = S_COMM_REQUEST;
+				/* Send tries reset */
+				send_tries = 0;
+				/* Timer reset */
+				reset_key_exchange_timer();
 			}
 			break;
 
@@ -846,6 +850,10 @@ parse_packet(uint8_t *data, uint16_t len)
 					if(parse_comm_reply_message(data, &temp_remote_device_id)) {
 						/* Send verify message */
 						key_exchange_state = S_VERIFY_REQUEST;
+						/* Send tries reset */
+						send_tries = 0;
+						/* Timer reset */
+						reset_key_exchange_timer();
 					}
 				}
 			}
@@ -858,6 +866,10 @@ parse_packet(uint8_t *data, uint16_t len)
 					if(parse_comm_reply_message(data, &devices[curr_device_index].remote_device_id)) {
 						/* Wait for Verify message */
 						key_exchange_state = S_COMM_REPLY;
+						/* Send tries reset */
+						send_tries = 0;
+						/* Timer reset */
+						reset_key_exchange_timer();
 					}
 				}
 			}
@@ -870,6 +882,8 @@ parse_packet(uint8_t *data, uint16_t len)
 					memcpy(&remote_verify_nonce[0], &data[4], 3);
 					/* reply to verify message */
 					key_exchange_state = S_VERIFY_REPLY;
+					/* Send tries reset */
+					send_tries = 0;
 				}
 			}
 			break;
@@ -886,6 +900,8 @@ parse_packet(uint8_t *data, uint16_t len)
 						increment_verify_nonce();
 						/* Go back to idle state */
 						key_exchange_state = S_KEY_EXCHANGE_IDLE;
+						/* Send tries reset */
+						send_tries = 0;
 					}
 				}
 			}

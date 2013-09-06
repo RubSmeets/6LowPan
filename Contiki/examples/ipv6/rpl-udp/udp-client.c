@@ -192,7 +192,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
 
   PROCESS_PAUSE();
 
-  SENSORS_ACTIVATE(button_sensor);
+  //SENSORS_ACTIVATE(button_sensor);
 
   set_global_address();
   
@@ -222,7 +222,8 @@ PROCESS_THREAD(udp_client_process, ev, data)
     PROCESS_YIELD();
     if(ev == tcpip_event) {
       tcpip_handler();
-    } else if (ev == sensors_event && data == &button_sensor) {
+    }
+//else if (ev == sensors_event && data == &button_sensor) {
 //    	PRINTF("Erase keys\n");
 //    	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
 //    	hasKeyIs_1 = 0;
@@ -240,7 +241,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
 //    	PRINTF("App mem set\n");
 //    	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
 //    	xmem_pwrite(temp_sec_device_list, 66, APP_SECURITY_DATA);
-    }
+//    }
     
     if(etimer_expired(&periodic)) {
       etimer_reset(&periodic);
