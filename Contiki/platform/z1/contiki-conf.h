@@ -51,7 +51,9 @@ extern  uint8_t  hasKeyIs_1;
 #define ENABLE_CBC_LINK_SECURITY 1
 #define ENABLE_CCM_LINK_SECURITY 0
 #define ENABLE_CTR_LINK_SECURITY 0
-#define ENABLE_CCM_APPLICATION	 1
+#define ENABLE_CCM_APPLICATION	 0
+#define SEC_CLIENT				 0
+#define SEC_SERVER				 1
 
 /* Specify a minimum packet size for 6lowpan compression to be
    enabled. This is needed for ContikiMAC, which needs packets to be
@@ -76,7 +78,7 @@ extern  uint8_t  hasKeyIs_1;
 #define NETSTACK_CONF_NETWORK rime_driver
 #define NETSTACK_CONF_MAC     csma_driver
 #define NETSTACK_CONF_RDC     contikimac_driver
-#define NETSTACK_CONF_RDC_CHANNEL_CHECK_RATE 8
+#define NETSTACK_CONF_RDC_CHANNEL_CHECK_RATE 8 /* default=8 changed for optimization */
 #define NETSTACK_CONF_FRAMER  framer_802154
 
 #define CC2420_CONF_AUTOACK              1

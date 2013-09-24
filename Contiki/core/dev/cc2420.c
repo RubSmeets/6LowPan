@@ -87,14 +87,14 @@
 #endif
 */
 
-#define DEBUG_SEC 0
+#define DEBUG_SEC 1
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
-#define PRINTFSEC(...) printf(__VA_ARGS__)
+#define PRINTFSEC(...)
 #define PRINTFSECAPP(...)
-#define PRINTF(...)
+#define PRINTF(...) printf(__VA_ARGS__)
 #else
 #define PRINTFSEC(...) do {} while (0)
 #define PRINTFSECAPP(...)

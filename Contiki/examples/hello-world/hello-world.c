@@ -42,8 +42,9 @@
 #include <stdio.h> /* For printf() */
 
 uint8_t test;
-uint8_t state;
+static uint8_t state;
 
+uint8_t __attribute__((__far__)) test_far_function(void);
 
 /*---------------------------------------------------------------------------*/
 PROCESS(hello_world_process, "Hello world process");
@@ -52,6 +53,7 @@ AUTOSTART_PROCESSES(&hello_world_process);
 PROCESS_THREAD(hello_world_process, ev, data)
 {
   uint8_t i = 0;
+  uint8_t count = 0;
 
   PROCESS_BEGIN();
 
@@ -63,6 +65,7 @@ PROCESS_THREAD(hello_world_process, ev, data)
 
 	  if(test > 10) {
 		  printf("ok\n");
+		  count = test_far_function();
 	  }
 
 	  switch(state) {
@@ -102,6 +105,9 @@ PROCESS_THREAD(hello_world_process, ev, data)
 	  		test = 0;
 	  		state = 0;
 	  		  break;
+	  	  case 30:
+	  		state = 0;
+	  		break;
 	  	  default:
 	  		test = 0;
 	  		state = 0;
@@ -112,8 +118,27 @@ PROCESS_THREAD(hello_world_process, ev, data)
 		  test = i;
 	  }
 
+	  if(count == 30)	printf("far\n");
+
   }
 
   PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
+uint8_t __attribute__((__far__))
+test_far_function(void)
+{
+	uint8_t count_temp=0;
+
+	count_temp = state;
+
+	if(count_temp == 4) {
+		count_temp = 200;
+	}
+
+	if(count_temp > 100) {
+		count_temp = 30;
+	}
+
+	return count_temp;
+}

@@ -96,6 +96,7 @@ static void
 init(void)
 {
   slip_arch_init(BAUD2UBR(115200));
+  PRINTF("Starting slip process\n");
   process_start(&slip_process, NULL);
   slip_set_input_callback(slip_input_callback);
 }

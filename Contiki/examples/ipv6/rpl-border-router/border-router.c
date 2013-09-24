@@ -61,6 +61,10 @@ extern uip_ds6_nbr_t uip_ds6_nbr_cache[];
 static uip_ipaddr_t prefix;
 static uint8_t prefix_set;
 
+#if ENABLE_CBC_LINK_SECURITY
+static struct uip_udp_conn *server_conn;
+#endif
+
 PROCESS(border_router_process, "Border router process");
 
 #if WEBSERVER==0
@@ -376,6 +380,20 @@ PROCESS_THREAD(border_router_process, ev, data)
   
 #if DEBUG || 1
   print_local_addresses();
+#endif
+
+#if ENABLE_CBC_LINK_SECURITY
+//   /*
+//	* new connection with remote host at port 0
+//	* to allow multiple remote ports on the same
+//	* connection
+//	*/
+//	sec_conn = udp_new(NULL, 0, NULL);
+//	if(sec_conn == NULL) {
+//		PRINTFSECKEY("No UDP conn, exiting proc!\n");
+//		PROCESS_EXIT();
+//	}
+//	udp_bind(sec_conn, UIP_HTONS(UDP_CLIENT_SEC_PORT));
 #endif
 
   while(1) {

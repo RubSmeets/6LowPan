@@ -100,7 +100,7 @@ struct hdr {
 };
 #endif /* WITH_CONTIKIMAC_HEADER */
 
-/* CYCLE_TIME for channel cca checks, in rtimer ticks. */
+/* CYCLE_TIME for channel cca(clear channel assessment) checks, in rtimer ticks. */
 #ifdef CONTIKIMAC_CONF_CYCLE_TIME
 #define CYCLE_TIME (CONTIKIMAC_CONF_CYCLE_TIME)
 #else
@@ -239,7 +239,7 @@ static volatile uint8_t contikimac_keep_radio_on = 0;
 static volatile unsigned char we_are_sending = 0;
 static volatile unsigned char radio_is_on = 0;
 
-#define DEBUG 0
+#define DEBUG 1
 #if DEBUG
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
@@ -292,10 +292,13 @@ static struct timer broadcast_rate_timer;
 static int broadcast_rate_counter;
 #endif /* CONTIKIMAC_CONF_BROADCAST_RATE_LIMIT */
 
+#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
 /* Is there any key material? */
 uint8_t hasKeyIs_1;
-
-#include "net/sec-arp.h"
+#include "net/sec-arp-client.h"
+#elif ENABLE_CBC_LINK_SECURITY & SEC_SERVER
+#include "net/sec-arp-server.h"
+#endif
 
 /*---------------------------------------------------------------------------*/
 static void
@@ -588,7 +591,7 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
       return MAC_TX_COLLISION;
     }
   } else {
-#if ENABLE_CBC_LINK_SECURITY
+#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
 	if(!hasKeyIs_1) {
 		/* Clear buffer */
 		packetbuf_clear();
@@ -611,7 +614,7 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[0],
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[1]);
 #endif /* UIP_CONF_IPV6 */
-#if ENABLE_CBC_LINK_SECURITY
+#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
 	}
 #endif
   }
@@ -647,7 +650,7 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
   }
   hdrlen += sizeof(struct hdr);
 #else
-#if ENABLE_CBC_LINK_SECURITY
+#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
   if(!hasKeyIs_1) {
 	  /* Create hello packet */
 	  create_hello((uint8_t *)packetbuf_dataptr());
@@ -1054,7 +1057,7 @@ input_packet(void)
       compower_clear(&current_packet);
 #endif /* CONTIKIMAC_CONF_COMPOWER */
 
-#if ENABLE_CBC_LINK_SECURITY
+#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
       /* Check if we have keys */
       if(!hasKeyIs_1) {
     	  if(packetbuf_datalen() == HELLO_REPLY_PACKETSIZE) {
@@ -1067,10 +1070,16 @@ input_packet(void)
     	  }
       }
       else {
+#elif ENABLE_CBC_LINK_SECURITY & SEC_SERVER
+	  /* Check if we received key request packet */
+	  if(packetbuf_datalen() == HELLO_REQ_PACKETSIZE) {
+		  /* Parse input */
+		  parse_hello_req((uint8_t *)packetbuf_dataptr());
+	  }
 #endif
 		  PRINTDEBUG("contikimac: data (%u)\n", packetbuf_datalen());
 		  NETSTACK_MAC.input();
-#if ENABLE_CBC_LINK_SECURITY
+#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
       }
 #endif
       return;

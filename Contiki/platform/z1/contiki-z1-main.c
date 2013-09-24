@@ -48,7 +48,7 @@
 #include "sys/clock.h"
 
 #if ENABLE_CCM_APPLICATION
-#include "keymanagement-v1.h"
+#include "symm-key-client-v1.h"
 #endif
 
 #if WITH_UIP6

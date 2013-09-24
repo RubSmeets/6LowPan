@@ -5,13 +5,13 @@
  *      Author: crea
  */
 
-#include "keymanagement-v1.h"
+#include "symm-key-client-v1.h"
 #include "dev/cc2420.h"
 #include "net/packetbuf.h"
 
 #include <string.h>
 
-#if 1
+#if 0
 
 #define DEBUG_SEC 0
 #if DEBUG_SEC
@@ -512,7 +512,8 @@ add_device_id(uip_ipaddr_t* curr_device_id)
 
 	if(amount_of_known_devices < MAX_DEVICES) {
 		/* Add device to known devices !!!!!!!!*/
-		uip_ipaddr_copy(&devices[amount_of_known_devices].remote_device_id, curr_device_id);
+		//uip_ipaddr_copy(&devices[amount_of_known_devices].remote_device_id, curr_device_id);
+		memcpy(&devices[amount_of_known_devices].remote_device_id, curr_device_id, DEVICE_ID_SIZE);
 		index = amount_of_known_devices;
 		amount_of_known_devices++;
 	}

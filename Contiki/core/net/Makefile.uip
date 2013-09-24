@@ -31,5 +31,6 @@ uip.c						\
 uip6.c						\
 uip_arp.c					\
 uiplib.c					\
-sec-arp.c					\
-keymanagement-v1.c
+sec-arp-client.c			\
+sec-arp-server.c			\
+symm-key-client-v1.c

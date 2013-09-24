@@ -4,7 +4,8 @@
  *  Created on: Aug 5, 2013
  *      Author: crea
  */
-#include "net/sec-arp.h"
+#include "net/sec-arp-client.h"
+#include "net/uip-ds6.h"
 #include "dev/xmem.h"
 
 #include <string.h>
@@ -32,6 +33,7 @@ void
 create_hello(uint8_t *buf)
 {
 	hello_packet_t packet;
+	uint8_t state, i;
 
 	/* Construct packet */
 	packet.type = HELLO_PACKET;
@@ -39,6 +41,14 @@ create_hello(uint8_t *buf)
 
 	buf[0] = packet.type;
 	buf[1] = packet.operation;
+
+	/* Get device-id */
+	for(i = 0; i < UIP_DS6_ADDR_NB; i++) {
+		state = uip_ds6_if.addr_list[i].state;
+		if(uip_ds6_if.addr_list[i].isused && state == ADDR_PREFERRED) {
+			memcpy(&buf[2], &uip_ds6_if.addr_list[i].ipaddr.u8[0], 16);
+		}
+	}
 
 	PRINTF("sec-arp: create\n");
 }
