@@ -103,8 +103,8 @@ send_packet(void *ptr)
     for(i=0; i<data_len; i++) PRINTF("%.2x",buf[i]);
     PRINTF("\n");
 
-  //data_ptr = keymanagement_creat_encrypted_packet(client_conn, (uint8_t *)buf, &data_len);
-  //PRINTF("result: %d\n", data_ptr);
+    data_ptr = keymanagement_send_encrypted_packet(client_conn, (uint8_t *)buf, &data_len, 0, &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
+    PRINTF("result: %d\n", data_ptr);
 //
 //  result = cc2420_encrypt_ccm((uint8_t *)buf, 24);
 //  if(!result) PRINTF("Encryption failed: busy!\n");

@@ -239,7 +239,7 @@ static volatile uint8_t contikimac_keep_radio_on = 0;
 static volatile unsigned char we_are_sending = 0;
 static volatile unsigned char radio_is_on = 0;
 
-#define DEBUG 1
+#define DEBUG 0
 #if DEBUG
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
@@ -1065,7 +1065,8 @@ input_packet(void)
     		  if(parse_hello_reply((uint8_t *)packetbuf_dataptr())) {
     			  /* Parse OK */
     			  /* Reset interrupt flag register to cause reboot */
-    		      watchdog_reboot();
+    		      //watchdog_reboot();
+    			  hasKeyIs_1 = 1;
     		  }
     	  }
       }

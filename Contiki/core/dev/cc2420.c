@@ -92,7 +92,7 @@
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
-#define PRINTFSEC(...)
+#define PRINTFSEC(...) printf(__VA_ARGS__)
 #define PRINTFSECAPP(...)
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
@@ -158,6 +158,7 @@ uint8_t  hasKeyIs_1;
 #if ENABLE_CBC_LINK_SECURITY
 #define ACK_PACKET_SIZE 	3
 static uint8_t mic_len;
+uint8_t network_key[16];
 inline void cc2420_initLinkLayerSec(void);
 #endif
 
@@ -1021,35 +1022,35 @@ cc2420_set_cca_threshold(int value)
 inline void
 cc2420_initLinkLayerSec(void)
 {
-	uint8_t  network_key[16];
+//	uint8_t  network_key[16];
 	uint16_t reg;
-	uint8_t sum, i;
+//	uint8_t sum, i;
 
-	/* Read security data from Flash mem */
-	xmem_pread(network_key, 16, MAC_SECURITY_DATA);
+//	/* Read security data from Flash mem */
+//	xmem_pread(network_key, 16, MAC_SECURITY_DATA);
 
-	/* Check if we have a network key */
-	sum = 0;
-	for(i=CC2420RAM_SEC_LEN; i>0; i--) {sum |= network_key[i-1];}
-	if(!(sum))	{
-		/* No sensor key present */
-		hasKeyIs_1 = 0;
-		mic_len = 0;
-		/* Set security control register 0 */
-		reg = getreg(CC2420_SECCTRL0);
-		reg &= ~RXFIFO_PROTECTION;
-		setreg(CC2420_SECCTRL0, reg);
-
-		PRINTFSEC("cc2420: No Sensor key present\n");
-		return;
-	}
+//	/* Check if we have a network key */
+//	sum = 0;
+//	for(i=CC2420RAM_SEC_LEN; i>0; i--) {sum |= network_key[i-1];}
+//	if(!(sum))	{
+//		/* No sensor key present */
+//		hasKeyIs_1 = 0;
+//		mic_len = 0;
+//		/* Set security control register 0 */
+//		reg = getreg(CC2420_SECCTRL0);
+//		reg &= ~RXFIFO_PROTECTION;
+//		setreg(CC2420_SECCTRL0, reg);
+//
+//		PRINTFSEC("cc2420: No Sensor key present\n");
+//		return;
+//	}
 
 	/* Enable key material */
-	hasKeyIs_1 = 1;
+	hasKeyIs_1 = 0;
 	mic_len = MIC_LEN;
-	PRINTFSEC("cc2420: Key OK ");
-	for(i=0; i<CC2420RAM_SEC_LEN; i++) PRINTFSEC("%.2X",network_key[i]);
-	PRINTFSEC("\n");
+//	PRINTFSEC("cc2420: Key OK ");
+//	for(i=0; i<CC2420RAM_SEC_LEN; i++) PRINTFSEC("%.2X",network_key[i]);
+//	PRINTFSEC("\n");
 
 	/* Set security control register 0 */
 	reg = getreg(CC2420_SECCTRL0);
@@ -1063,8 +1064,8 @@ cc2420_initLinkLayerSec(void)
 	setreg(CC2420_SECCTRL0, reg);
 	PRINTFSEC("cc2420: SEC0 reg: %.2X\n", reg);
 
-	/* Set the in-line network key */
-	CC2420_WRITE_RAM_REV(&network_key[0], CC2420RAM_KEY0, CC2420RAM_SEC_LEN);
+//	/* Set the in-line network key */
+//	CC2420_WRITE_RAM_REV(&network_key[0], CC2420RAM_KEY0, CC2420RAM_SEC_LEN);
 
 	PRINTFSEC("cc2420: Init CBC MAC complete\n");
 }
@@ -1118,7 +1119,7 @@ setNonce(unsigned short RX_nTX, uint8_t *p_address_nonce, uint32_t *p_msg_ctr, u
 }
 /*---------------------------------------------------------------------------*/
 int
-cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *src_msg_cntr, uint8_t *src_nonce_cntr,
+cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *src_msg_cntr, uint8_t *src_nonce_cntr,
 				uint8_t *data_len, unsigned short adata_len)
 {
 	unsigned int stats;
@@ -1166,7 +1167,7 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *src_m
 }
 /*---------------------------------------------------------------------------*/
 int
-cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, msgnonce_type_t *msg_cntr, uint8_t *nonce_cntr,
+cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *msg_cntr, uint8_t *nonce_cntr,
 				uint8_t *data_len, unsigned short adata_len)
 {
 	unsigned int stats;

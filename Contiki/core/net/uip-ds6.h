@@ -371,4 +371,17 @@ uint32_t uip_ds6_compute_reachable_time(void); /** \brief compute random reachab
 /** @} */
 /** @} */
 
+
+struct device_sec_data {
+  uip_ipaddr_t  	remote_device_id;
+  uint16_t			msg_cntr;
+  uint8_t			nonce_cntr;
+  uint16_t 			remote_msg_cntr;
+  uint8_t 	 		remote_nonce_cntr;
+  uint8_t			key_freshness;
+  uint8_t			session_key[16];
+};
+
+extern  struct device_sec_data devices[MAX_DEVICES];
+
 #endif /* __UIP_DS6_H__ */

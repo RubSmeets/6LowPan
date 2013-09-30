@@ -6,7 +6,8 @@
  */
 #include "net/sec-arp-client.h"
 #include "net/uip-ds6.h"
-#include "dev/xmem.h"
+//#include "dev/xmem.h"
+#include "contiki-conf.h"
 
 #include <string.h>
 
@@ -21,6 +22,9 @@
 #define LINKLAYER_OFFSET	2
 #define APPLAYER_OFFSET		19
 #define SEC_DATA_SIZE 		33
+
+struct device_sec_data devices[MAX_DEVICES];
+uint8_t  network_key[16];
 
 /*-----------------------------------------------------------------------------------*/
 /**
@@ -100,21 +104,29 @@ parse_hello_reply(uint8_t *buf)
 		return 0;
 	}
 
-	memcpy(&temp_buf[0], &buf[APPLAYER_OFFSET], SEC_DATA_SIZE-1);
-	temp_buf[SEC_DATA_SIZE-1] = 0x01;
+//	memcpy(&temp_buf[0], &buf[APPLAYER_OFFSET], SEC_DATA_SIZE-1);
+//	temp_buf[SEC_DATA_SIZE-1] = 0x01;
+	memcpy(&network_key[0], &buf[2], 16);
 
+	devices[0].key_freshness = 0x00;
+	devices[0].msg_cntr = 0;
+	devices[0].nonce_cntr = 1;
+	memcpy(&devices[0].remote_device_id.u8[0], &buf[APPLAYER_OFFSET], 16);
+	memcpy(&devices[0].session_key[0], &buf[APPLAYER_OFFSET+16], 16);
 
-	/* Write link-layer security data to flash */
-	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
-	xmem_pwrite(&buf[LINKLAYER_OFFSET], 17, MAC_SECURITY_DATA);
+	/* write key to cc2420 reg !!!!!!!!!!!!!!*/
 
-	/* Write application-layer security data to flash */
-	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
-	xmem_pwrite(&temp_buf[0], SEC_DATA_SIZE, APP_SECURITY_DATA);
-
-	/* Write nonce to flash  (clear key-exchange nonces) */
-	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_NONCE_DATA);
-	xmem_pwrite(&temp_buf[SEC_DATA_SIZE-1], 1, APP_NONCE_DATA+4);
+//	/* Write link-layer security data to flash */
+//	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
+//	xmem_pwrite(&buf[LINKLAYER_OFFSET], 17, MAC_SECURITY_DATA);
+//
+//	/* Write application-layer security data to flash */
+//	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
+//	xmem_pwrite(&temp_buf[0], SEC_DATA_SIZE, APP_SECURITY_DATA);
+//
+//	/* Write nonce to flash  (clear key-exchange nonces) */
+//	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_NONCE_DATA);
+//	xmem_pwrite(&temp_buf[SEC_DATA_SIZE-1], 1, APP_NONCE_DATA+4);
 
 	PRINTF("sec-arp: parse OK\n");
 
