@@ -41,9 +41,11 @@
 #define SEC_KEY_OFFSET			16
 #define ADATA_KEYEXCHANGE		4
 
+/* timing defines */
 #define CHECK_INTERVAL		(CLOCK_SECOND)*5
 #define MAX_WAIT_TIME			2
 #define MAX_SEND_TRIES			2
+#define RETRANSMIT_DELAY		4
 
 /* Different states */
 #define S_IDLE 			0
@@ -640,7 +642,8 @@ key_exchange_protocol(void)
 	send_key_exchange_packet();
 
 	/* Increment send tries */
-	send_tries++;
+	if(send_tries > RETRANSMIT_DELAY) 	send_tries = 0;
+	else send_tries++;
 
 	return 1;
 }
