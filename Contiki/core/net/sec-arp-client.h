@@ -17,7 +17,7 @@ typedef struct {
 
 /* Defines the reply packet length */
 #define HELLO_REPLY_PACKETSIZE 51
-#define HELLO_PACKETSIZE 18
+#define HELLO_PACKETSIZE 26
 
 #define HELLO_PACKET 	1
 #define HELLO_ACK	 	2

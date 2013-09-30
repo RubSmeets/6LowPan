@@ -306,7 +306,13 @@ PROCESS_THREAD(slip_process, ev, data)
 #ifdef SLIP_CONF_TCPIP_INPUT
       SLIP_CONF_TCPIP_INPUT();
 #else
+#if ENABLE_CBC_LINK_SECURITY & SEC_SERVER
+      if(!(rxbuf[begin] == SEC_MARKER)) {
+    	  tcpip_input();
+      }
+#else
       tcpip_input();
+#endif
 #endif
     }
 #endif /* UIP_CONF_IPV6 */

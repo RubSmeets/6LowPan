@@ -36,6 +36,11 @@
 
 #include "contiki.h"
 
+#if ENABLE_CBC_LINK_SECURITY & SEC_SERVER
+#define SEC_MARKER		'+'
+#define REQ_MSG			'R'
+#endif
+
 PROCESS_NAME(slip_process);
 
 /**

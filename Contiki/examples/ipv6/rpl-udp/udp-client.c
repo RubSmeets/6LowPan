@@ -38,6 +38,7 @@
 #include "cc2420-aes.h"
 #include "dev/cc2420.h"
 #include "symm-key-client-v1.h"
+#include "dev/watchdog.h"
 
 //#include "contiki-conf.h"
 #ifdef WITH_COMPOWER
@@ -192,7 +193,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
 
   PROCESS_PAUSE();
 
-  //SENSORS_ACTIVATE(button_sensor);
+  SENSORS_ACTIVATE(button_sensor);
 
   set_global_address();
   
@@ -223,11 +224,10 @@ PROCESS_THREAD(udp_client_process, ev, data)
     if(ev == tcpip_event) {
       tcpip_handler();
     }
-//else if (ev == sensors_event && data == &button_sensor) {
-//    	PRINTF("Erase keys\n");
-//    	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
-//    	hasKeyIs_1 = 0;
-//    	cc2420_init();
+else if (ev == sensors_event && data == &button_sensor) {
+    	PRINTF("Erase keys\n");
+    	xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
+    	watchdog_reboot();
 
 //    	uint8_t i;
 //    	for(i=0; i<16; i++) {temp_sec_device_list[i+16] = 8;}
@@ -241,7 +241,7 @@ PROCESS_THREAD(udp_client_process, ev, data)
 //    	PRINTF("App mem set\n");
 //    	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
 //    	xmem_pwrite(temp_sec_device_list, 66, APP_SECURITY_DATA);
-//    }
+    }
     
     if(etimer_expired(&periodic)) {
       etimer_reset(&periodic);

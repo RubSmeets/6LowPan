@@ -41,9 +41,6 @@
 
 #include <stdio.h> /* For printf() */
 
-uint8_t test;
-static uint8_t state;
-
 uint8_t __attribute__((__far__)) test_far_function(void);
 
 /*---------------------------------------------------------------------------*/
@@ -54,6 +51,8 @@ PROCESS_THREAD(hello_world_process, ev, data)
 {
   uint8_t i = 0;
   uint8_t count = 0;
+  uint8_t state = 0;
+  uint8_t test = 0;
 
   PROCESS_BEGIN();
 
@@ -130,7 +129,7 @@ test_far_function(void)
 {
 	uint8_t count_temp=0;
 
-	count_temp = state;
+	count_temp = 4;
 
 	if(count_temp == 4) {
 		count_temp = 200;

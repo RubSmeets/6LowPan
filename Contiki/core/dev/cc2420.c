@@ -92,7 +92,7 @@
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
-#define PRINTFSEC(...)
+#define PRINTFSEC(...) printf(__VA_ARGS__)
 #define PRINTFSECAPP(...)
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
@@ -159,6 +159,10 @@ uint8_t  hasKeyIs_1;
 #define ACK_PACKET_SIZE 	3
 static uint8_t mic_len;
 inline void cc2420_initLinkLayerSec(void);
+#endif
+
+#if ENABLE_CBC_LINK_SECURITY & SEC_SERVER
+#define MIN_SIGNAL_STRENGTH	0x10
 #endif
 
 #if ENABLE_CCM_APPLICATION
@@ -788,7 +792,7 @@ cc2420_read(void *buf, unsigned short bufsize)
     return 0;
   }
 
-#if ENABLE_CBC_LINK_SECURITY
+#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
   /*
    * Check if we are receiving an ACK-packet. They don't have
    * a MIC message appended.
@@ -800,6 +804,30 @@ cc2420_read(void *buf, unsigned short bufsize)
 		  uint8_t mic_code[mic_len];
 		  getrxdata(mic_code, mic_len);
 		  if(mic_code[mic_len-1] != 0x00)
+		  {
+			  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
+			  flushrx();
+			  RELEASE_LOCK();
+			  return 0;
+		  }
+	  }
+  } else {
+	  getrxdata(buf, len - AUX_LEN);
+  }
+
+#elif ENABLE_CBC_LINK_SECURITY & SEC_SERVER
+  /*
+   * Check if we are receiving an ACK-packet. They don't have
+   * a MIC message appended. If authentication fails then it
+   * still can be a key request message.
+   */
+  if(bufsize != ACK_PACKET_SIZE) {
+	  getrxdata(buf, len - AUX_LEN - mic_len);
+
+	  if(hasKeyIs_1) {
+		  uint8_t mic_code[mic_len];
+		  getrxdata(mic_code, mic_len);
+		  if(mic_code[mic_len-1] != 0x00 && ((len - AUX_LEN - mic_len) != 33))
 		  {
 			  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
 			  flushrx();
@@ -844,6 +872,18 @@ cc2420_read(void *buf, unsigned short bufsize)
     cc2420_last_rssi = footer[0];
     cc2420_last_correlation = footer[1] & FOOTER1_CORRELATION;
 
+#if ENABLE_CBC_LINK_SECURITY & SEC_SERVER
+    PRINTFSEC("cc2420: rssi %02x\n", footer[0]);
+    PRINTFSEC("cc2420: correlation %02x\n", cc2420_last_correlation);
+
+    /* Check the signal strength */
+    if((!((footer[0] & 0x80)>0)) && ((footer[0] & 0x7F) > MIN_SIGNAL_STRENGTH)) {
+    	PRINTFSEC("cc2420: close enough\n");
+    } else {
+    	PRINTFSEC("cc2420: NOT close enough\n");
+    	len = 0;
+    }
+#endif
 
     packetbuf_set_attr(PACKETBUF_ATTR_RSSI, cc2420_last_rssi);
     packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, cc2420_last_correlation);

@@ -18,6 +18,9 @@
 #define SEC_ARP_REQUEST	1
 #define SEC_ARP_REPLY	2
 
+#define SEC_MARKER		'+'
+#define REQ_MSG			'R'
+
 void parse_hello_req(uint8_t *buf);
 
 #endif /* SEC_ARP_SERVER_H_ */

@@ -213,6 +213,15 @@ serial_to_tun(FILE *inslip, int outfd)
           if (timestamp) stamptime();
 	  ssystem("ifconfig %s up", tundev);
 	}
+      } else if(uip.inbuf[0] == '+') {
+    	  if(uip.inbuf[1] == 'R') {
+    		  /* SEC-ARP-REQUEST */
+    		  fprintf(stderr,"*** ");
+    		  for(i = 0; i < 24; i++) {
+    			  fprintf(stderr,"%02x",uip.inbuf[i+2]);
+    		  }
+    		  fprintf(stderr,"\n");
+    	  }
       } else if(uip.inbuf[0] == '?') {
 	if(uip.inbuf[1] == 'P') {
           /* Prefix info requested */

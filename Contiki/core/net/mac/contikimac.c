@@ -1072,6 +1072,7 @@ input_packet(void)
       else {
 #elif ENABLE_CBC_LINK_SECURITY & SEC_SERVER
 	  /* Check if we received key request packet */
+      PRINTF("contikimac: datalen %d\n", packetbuf_datalen());
 	  if(packetbuf_datalen() == HELLO_REQ_PACKETSIZE) {
 		  /* Parse input */
 		  parse_hello_req((uint8_t *)packetbuf_dataptr());
