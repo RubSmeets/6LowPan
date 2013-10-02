@@ -194,7 +194,7 @@ static int we_are_receiving_burst = 0;
 #ifdef CONTIKIMAC_CONF_INTER_PACKET_INTERVAL
 #define INTER_PACKET_INTERVAL              CONTIKIMAC_CONF_INTER_PACKET_INTERVAL
 #else
-#define INTER_PACKET_INTERVAL              RTIMER_ARCH_SECOND / 2500
+#define INTER_PACKET_INTERVAL              RTIMER_ARCH_SECOND / 2500 /* 2500 */
 #endif
 
 /* AFTER_ACK_DETECTECT_WAIT_TIME is the time to wait after a potential
@@ -203,7 +203,7 @@ static int we_are_receiving_burst = 0;
 #ifdef CONTIKIMAC_CONF_AFTER_ACK_DETECTECT_WAIT_TIME
 #define AFTER_ACK_DETECTECT_WAIT_TIME      CONTIKIMAC_CONF_AFTER_ACK_DETECTECT_WAIT_TIME
 #else
-#define AFTER_ACK_DETECTECT_WAIT_TIME      RTIMER_ARCH_SECOND / 1500
+#define AFTER_ACK_DETECTECT_WAIT_TIME      RTIMER_ARCH_SECOND / 1500 /* 1500 */
 #endif
 
 /* MAX_PHASE_STROBE_TIME is the time that we transmit repeated packets
@@ -237,7 +237,7 @@ static volatile uint8_t contikimac_keep_radio_on = 0;
 static volatile unsigned char we_are_sending = 0;
 static volatile unsigned char radio_is_on = 0;
 
-#define DEBUG 0
+#define DEBUG 1
 #if DEBUG
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
@@ -815,7 +815,7 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
           encounter_time = txtime;
           break;
         } else {
-          PRINTF("contikimac: collisions while sending\n");
+          PRINTF("contikimac: collisions while sending len: %d seqno: %d ackseq: %d\n", len, seqno, ackbuf[ACK_LEN - 1]);
           collisions++;
         }
       }

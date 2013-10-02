@@ -87,12 +87,12 @@
 #endif
 */
 
-#define DEBUG_SEC 0
+#define DEBUG_SEC 1
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
-#define PRINTFSEC(...) printf(__VA_ARGS__)
+#define PRINTFSEC(...)
 #define PRINTFSECAPP(...)
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
@@ -799,11 +799,14 @@ cc2420_read(void *buf, unsigned short bufsize)
 	  getrxdata(mic_code, mic_len);
 	  if(mic_code[mic_len-1] != 0x00)
 	  {
-		  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
+		  PRINTF("cc2420: FAILED TO AUTHENTICATE\n");
 		  flushrx();
 		  RELEASE_LOCK();
 		  return 0;
 	  }
+	  PRINTF("cc2420: SUCCESS\n");
+  } else {
+	  getrxdata(buf, len - AUX_LEN);
   }
 #else
   getrxdata(buf, len - AUX_LEN);
@@ -857,6 +860,7 @@ cc2420_read(void *buf, unsigned short bufsize)
       PRINTFSEC("2\n");
       flushrx();
     } else {
+      PRINTF("Poll\n");
       /* Another packet has been received and needs attention. */
       process_poll(&cc2420_process);
     }

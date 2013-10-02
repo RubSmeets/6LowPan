@@ -51,6 +51,10 @@
 
 void set_prefix_64(uip_ipaddr_t *);
 
+#if ENABLE_CBC_LINK_SECURITY
+void set_key(uint8_t *key);
+#endif
+
 static uip_ipaddr_t last_sender;
 /*---------------------------------------------------------------------------*/
 static void
@@ -86,6 +90,15 @@ slip_input_callback(void)
       
     }
     uip_len = 0;
+  } else if (uip_buf[0] == '+') {
+	  PRINTF("Got config message of type sec\n");
+	  if(uip_buf[1] == 'K') {
+		  uint8_t i;
+		  PRINTF("key: ");
+		  for(i=0; i<16; i++) PRINTF("%02x ", uip_buf[2]);
+		  PRINTF("\n");
+		  set_key(&uip_buf[2]);
+	  }
   }
   /* Save the last sender received over SLIP to avoid bouncing the
      packet back if no route is found */

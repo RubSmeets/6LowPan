@@ -62,7 +62,15 @@ static uip_ipaddr_t prefix;
 static uint8_t prefix_set;
 
 #if ENABLE_CBC_LINK_SECURITY
+#include "dev/cc2420.h"
+
+#define SLIP_SEC_PRE		'+'
+#define SLIP_SEC_KEY_REQ	'K'
+
 static struct uip_udp_conn *server_conn;
+static uint8_t key_set;
+
+static void request_key(void);
 #endif
 
 PROCESS(border_router_process, "Border router process");
@@ -367,6 +375,17 @@ PROCESS_THREAD(border_router_process, ev, data)
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
   }
 
+#if ENABLE_CBC_LINK_SECURITY
+  key_set = 0;
+
+  /* Request network key */
+  while(!key_set) {
+    etimer_set(&et, CLOCK_SECOND);
+    request_key();
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+  }
+#endif
+
   dag = rpl_set_root(RPL_DEFAULT_INSTANCE,(uip_ip6addr_t *)dag_id);
   if(dag != NULL) {
     rpl_set_prefix(dag, &prefix, 64);
@@ -406,4 +425,28 @@ PROCESS_THREAD(border_router_process, ev, data)
 
   PROCESS_END();
 }
+
 /*---------------------------------------------------------------------------*/
+#if ENABLE_CBC_LINK_SECURITY
+static void
+request_key(void)
+{
+  /* mess up uip_buf with a dirty request... */
+  uip_buf[0] = SLIP_SEC_PRE;
+  uip_buf[1] = SLIP_SEC_KEY_REQ;
+  uip_len = 2;
+  slip_send();
+  uip_len = 0;
+}
+
+/*---------------------------------------------------------------------------*/
+void
+set_key(uint8_t *key)
+{
+	key_set = 1;
+	PRINTF("Setting key\n");
+	/* write key to cc2420 reg */
+	CC2420_WRITE_RAM_REV(&key[0], CC2420RAM_KEY0, 16);
+}
+
+#endif

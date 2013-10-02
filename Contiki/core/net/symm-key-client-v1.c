@@ -11,9 +11,9 @@
 
 #include <string.h>
 
-#if 1
+#if !(ENABLE_CBC_LINK_SECURITY & SEC_SERVER)
 
-#define DEBUG_SEC 1
+#define DEBUG_SEC 0
 #if DEBUG_SEC
 #include <stdio.h>
 #define PRINTFSECKEY(...) printf(__VA_ARGS__)
@@ -276,7 +276,7 @@ keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8
 
 	total_len = *data_len + NONCE_SIZE;
 
-	PRINTFSECKEY("msg and nonce B: %ld, %d\n", devices[dest_index].msg_cntr, devices[dest_index].nonce_cntr);
+	PRINTFSECKEY("msg and nonce B: %d, %d\n", devices[dest_index].msg_cntr, devices[dest_index].nonce_cntr);
 
 	/* Encrypt message */
 	if(!cc2420_encrypt_ccm(tempbuf, &curr_ip->u8[0], &devices[dest_index].msg_cntr, &devices[dest_index].nonce_cntr, &total_len, adata_len)) return ENCRYPT_FAILED;
@@ -287,7 +287,7 @@ keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8
 	/* Increment message counter if transmission successful!!!!!!!*/
 	devices[dest_index].msg_cntr++;
 
-	PRINTFSECKEY("msg and nonce A: %ld, %d\n", devices[dest_index].msg_cntr, devices[dest_index].nonce_cntr);
+	PRINTFSECKEY("msg and nonce A: %d, %d\n", devices[dest_index].msg_cntr, devices[dest_index].nonce_cntr);
 
 	PRINTFSECKEYM("after: ");
 	for(i=1; i<*data_len; i++) PRINTFSECKEYM("%.2x",tempbuf[i]);
@@ -329,7 +329,7 @@ keymanagement_decrypt_packet(uip_ipaddr_t *remote_device_id, uint8_t *data, uint
 	src_nonce_cntr = data[MSG_NONCE_SIZE];
 
 	if((src_msg_cntr <= devices[src_index].remote_msg_cntr) || (src_nonce_cntr < devices[src_index].remote_nonce_cntr)) {
-		PRINTFSECKEY("Replay message storeM: %ld, recM: %ld\n", devices[src_index].remote_msg_cntr, src_msg_cntr);
+		PRINTFSECKEY("Replay message storeM: %d, recM: %d\n", devices[src_index].remote_msg_cntr, src_msg_cntr);
 		return REPLAY_MESSAGE;
 	}
 

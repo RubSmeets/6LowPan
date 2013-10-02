@@ -61,15 +61,14 @@ uint16_t slip_rubbish, slip_twopackets, slip_overflow, slip_ip_drop;
 
 #if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
 uint8_t  network_key[16];
+#endif
 
-#define DEBUG 1
+#define DEBUG 0
 #if DEBUG
 #include <stdio.h>
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
 #define PRINTF(...) do {} while (0)
-#endif
-
 #endif
 
 /* Must be at least one byte larger than UIP_BUFSIZE! */
