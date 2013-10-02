@@ -56,6 +56,8 @@
 
 #include <err.h>
 
+#define ENABLE_SECURITY 1
+
 int verbose = 1;
 const char *ipaddr;
 const char *netmask;
@@ -239,6 +241,64 @@ serial_to_tun(FILE *inslip, int outfd)
 	  }
 	  slip_send(slipfd, SLIP_END);
         }
+#if ENABLE_SECURITY
+#define DEVICE_ID_OFFSET	2
+#define DEVICE_MAC_OFFSET	18
+      } else if(uip.inbuf[0] == 'H') {
+    	  if(uip.inbuf[1] == 'Q') {
+    		  /* Security request message */
+    		  /* Check if we know the node */
+
+    		  /* Send request to tablet */
+
+    		  /* Process reply from tablet */
+
+    		  /* Store data in database */
+
+    		  /* Get data from database */
+
+    		  /* Make hello-reply-packet using data */
+    		  fprintf(stderr,"*** Address node %02x%02x%02x%02x:%02x%02x%02x%02x:%02x%02x%02x%02x:%02x%02x%02x%02x\n",
+    				  uip.inbuf[DEVICE_ID_OFFSET], uip.inbuf[DEVICE_ID_OFFSET+1],
+    				  uip.inbuf[DEVICE_ID_OFFSET+2], uip.inbuf[DEVICE_ID_OFFSET+3],
+    				  uip.inbuf[DEVICE_ID_OFFSET+4], uip.inbuf[DEVICE_ID_OFFSET+5],
+    				  uip.inbuf[DEVICE_ID_OFFSET+6], uip.inbuf[DEVICE_ID_OFFSET+7],
+    				  uip.inbuf[DEVICE_ID_OFFSET+8], uip.inbuf[DEVICE_ID_OFFSET+9],
+    				  uip.inbuf[DEVICE_ID_OFFSET+10], uip.inbuf[DEVICE_ID_OFFSET+11],
+    				  uip.inbuf[DEVICE_ID_OFFSET+12], uip.inbuf[DEVICE_ID_OFFSET+13],
+    				  uip.inbuf[DEVICE_ID_OFFSET+14], uip.inbuf[DEVICE_ID_OFFSET+15]);
+
+    		  fprintf(stderr,"*** MAC Address node %02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
+					  uip.inbuf[DEVICE_MAC_OFFSET], uip.inbuf[DEVICE_MAC_OFFSET+1],
+					  uip.inbuf[DEVICE_MAC_OFFSET+2], uip.inbuf[DEVICE_MAC_OFFSET+3],
+					  uip.inbuf[DEVICE_MAC_OFFSET+4], uip.inbuf[DEVICE_MAC_OFFSET+5],
+					  uip.inbuf[DEVICE_MAC_OFFSET+6], uip.inbuf[DEVICE_MAC_OFFSET+7]);
+
+    		  int b;
+    		  char network_key[16] = {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5};
+    		  char sensor_key[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    		  //char sensor_key[16] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
+    		  struct in6_addr addr;
+
+    		  slip_send(slipfd, 'A');
+    		  slip_send(slipfd, 'R');
+    		  slip_send(slipfd, 0);
+    		  for(b = 0; b < 16; b++) {
+				/* need to call the slip_send_char for stuffing */
+				slip_send_char(slipfd, network_key[b]);
+			  }
+    		  for(b = 0; b < 16; b++) {
+				/* need to call the slip_send_char for stuffing */
+				slip_send_char(slipfd, addr.s6_addr[b]);
+			  }
+    		  for(b = 0; b < 16; b++) {
+				/* need to call the slip_send_char for stuffing */
+				slip_send_char(slipfd, sensor_key[b]);
+			  }
+			  slip_send(slipfd, SLIP_END);
+
+    	  }
+#endif
 #define DEBUG_LINE_MARKER '\r'
       } else if(uip.inbuf[0] == DEBUG_LINE_MARKER) {    
 	fwrite(uip.inbuf + 1, inbufptr - 1, 1, stdout);

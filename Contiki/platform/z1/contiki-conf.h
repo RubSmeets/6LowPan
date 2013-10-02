@@ -47,7 +47,6 @@
 #define NETSTACK_CONF_FRAMER  framer_802154
 
 #define MAX_DEVICES 			3
-extern  uint8_t  hasKeyIs_1;
 extern  uint8_t  network_key[16];
 
 #define ENABLE_CBC_LINK_SECURITY 1
@@ -162,7 +161,7 @@ extern  uint8_t  network_key[16];
 #define UIP_CONF_ND6_MAX_NEIGHBORS      4
 #define UIP_CONF_ND6_MAX_DEFROUTERS     2
 #define UIP_CONF_IP_FORWARD             0
-#define UIP_CONF_BUFFER_SIZE		140
+#define UIP_CONF_BUFFER_SIZE		180
 
 #define SICSLOWPAN_CONF_COMPRESSION_IPV6        0
 #define SICSLOWPAN_CONF_COMPRESSION_HC1         1

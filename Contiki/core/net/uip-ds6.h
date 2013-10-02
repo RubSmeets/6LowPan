@@ -371,7 +371,7 @@ uint32_t uip_ds6_compute_reachable_time(void); /** \brief compute random reachab
 /** @} */
 /** @} */
 
-
+/* Global variable for security devices */
 struct device_sec_data {
   uip_ipaddr_t  	remote_device_id;
   uint16_t			msg_cntr;

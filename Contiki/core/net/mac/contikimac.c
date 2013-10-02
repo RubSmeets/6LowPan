@@ -50,8 +50,6 @@
 #include "sys/compower.h"
 #include "sys/pt.h"
 #include "sys/rtimer.h"
-/* Include watchdog for global reset */
-#include "dev/watchdog.h"
 
 
 #include <string.h>
@@ -291,14 +289,6 @@ static struct seqno received_seqnos[MAX_SEQNOS];
 static struct timer broadcast_rate_timer;
 static int broadcast_rate_counter;
 #endif /* CONTIKIMAC_CONF_BROADCAST_RATE_LIMIT */
-
-#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
-/* Is there any key material? */
-uint8_t hasKeyIs_1;
-#include "net/sec-arp-client.h"
-#elif ENABLE_CBC_LINK_SECURITY & SEC_SERVER
-#include "net/sec-arp-server.h"
-#endif
 
 /*---------------------------------------------------------------------------*/
 static void
@@ -591,14 +581,6 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
       return MAC_TX_COLLISION;
     }
   } else {
-#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
-	if(!hasKeyIs_1) {
-		/* Clear buffer */
-		packetbuf_clear();
-		packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &rimeaddr_null);
-		is_broadcast = 1;
-	} else {
-#endif
 #if UIP_CONF_IPV6
 		PRINTDEBUG("contikimac: send unicast to %02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[0],
@@ -614,9 +596,6 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[0],
 				   packetbuf_addr(PACKETBUF_ADDR_RECEIVER)->u8[1]);
 #endif /* UIP_CONF_IPV6 */
-#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
-	}
-#endif
   }
 
 #if !NETSTACK_CONF_BRIDGE_MODE
@@ -650,13 +629,6 @@ send_packet(mac_callback_t mac_callback, void *mac_callback_ptr,
   }
   hdrlen += sizeof(struct hdr);
 #else
-#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
-  if(!hasKeyIs_1) {
-	  /* Create hello packet */
-	  create_hello((uint8_t *)packetbuf_dataptr());
-	  packetbuf_set_datalen(HELLO_PACKETSIZE);
-  }
-#endif
   /* Create the MAC header for the data packet. */
   hdrlen = NETSTACK_FRAMER.create();
   if(hdrlen < 0) {
@@ -1057,32 +1029,9 @@ input_packet(void)
       compower_clear(&current_packet);
 #endif /* CONTIKIMAC_CONF_COMPOWER */
 
-#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
-      /* Check if we have keys */
-      if(!hasKeyIs_1) {
-    	  if(packetbuf_datalen() == HELLO_REPLY_PACKETSIZE) {
-    		  /* Parse input */
-    		  if(parse_hello_reply((uint8_t *)packetbuf_dataptr())) {
-    			  /* Parse OK */
-    			  /* Reset interrupt flag register to cause reboot */
-    		      //watchdog_reboot();
-    			  hasKeyIs_1 = 1;
-    		  }
-    	  }
-      }
-      else {
-#elif ENABLE_CBC_LINK_SECURITY & SEC_SERVER
-	  /* Check if we received key request packet */
-	  if(packetbuf_datalen() == HELLO_REQ_PACKETSIZE) {
-		  /* Parse input */
-		  parse_hello_req((uint8_t *)packetbuf_dataptr());
-	  }
-#endif
-		  PRINTDEBUG("contikimac: data (%u)\n", packetbuf_datalen());
-		  NETSTACK_MAC.input();
-#if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
-      }
-#endif
+	  PRINTDEBUG("contikimac: data (%u)\n", packetbuf_datalen());
+	  NETSTACK_MAC.input();
+
       return;
     } else {
       PRINTDEBUG("contikimac: data not for us\n");

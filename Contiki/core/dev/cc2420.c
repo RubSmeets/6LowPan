@@ -87,7 +87,7 @@
 #endif
 */
 
-#define DEBUG_SEC 1
+#define DEBUG_SEC 0
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;
@@ -154,11 +154,9 @@ static int pending_packet(void);
 static int cc2420_cca(void);
 /*static int detected_energy(void);*/
 
-uint8_t  hasKeyIs_1;
 #if ENABLE_CBC_LINK_SECURITY
 #define ACK_PACKET_SIZE 	3
 static uint8_t mic_len;
-uint8_t network_key[16];
 inline void cc2420_initLinkLayerSec(void);
 #endif
 
@@ -758,7 +756,7 @@ cc2420_read(void *buf, unsigned short bufsize)
    * these packets aren't encrypted and give errors when performing
    * decryption.
    */
-  if(hasKeyIs_1 && (bufsize != ACK_PACKET_SIZE)) {
+  if(bufsize != ACK_PACKET_SIZE) {
 	  strobe(CC2420_SRXDEC);
 	  BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
   }
@@ -797,21 +795,16 @@ cc2420_read(void *buf, unsigned short bufsize)
   if(bufsize != ACK_PACKET_SIZE) {
 	  getrxdata(buf, len - AUX_LEN - mic_len);
 
-	  if(hasKeyIs_1) {
-		  uint8_t mic_code[mic_len];
-		  getrxdata(mic_code, mic_len);
-		  if(mic_code[mic_len-1] != 0x00)
-		  {
-			  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
-			  flushrx();
-			  RELEASE_LOCK();
-			  return 0;
-		  }
+	  uint8_t mic_code[mic_len];
+	  getrxdata(mic_code, mic_len);
+	  if(mic_code[mic_len-1] != 0x00)
+	  {
+		  PRINTFSEC("cc2420: FAILED TO AUTHENTICATE\n");
+		  flushrx();
+		  RELEASE_LOCK();
+		  return 0;
 	  }
-  } else {
-	  getrxdata(buf, len - AUX_LEN);
   }
-
 #else
   getrxdata(buf, len - AUX_LEN);
 #endif
@@ -1022,35 +1015,10 @@ cc2420_set_cca_threshold(int value)
 inline void
 cc2420_initLinkLayerSec(void)
 {
-//	uint8_t  network_key[16];
 	uint16_t reg;
-//	uint8_t sum, i;
-
-//	/* Read security data from Flash mem */
-//	xmem_pread(network_key, 16, MAC_SECURITY_DATA);
-
-//	/* Check if we have a network key */
-//	sum = 0;
-//	for(i=CC2420RAM_SEC_LEN; i>0; i--) {sum |= network_key[i-1];}
-//	if(!(sum))	{
-//		/* No sensor key present */
-//		hasKeyIs_1 = 0;
-//		mic_len = 0;
-//		/* Set security control register 0 */
-//		reg = getreg(CC2420_SECCTRL0);
-//		reg &= ~RXFIFO_PROTECTION;
-//		setreg(CC2420_SECCTRL0, reg);
-//
-//		PRINTFSEC("cc2420: No Sensor key present\n");
-//		return;
-//	}
 
 	/* Enable key material */
-	hasKeyIs_1 = 0;
 	mic_len = MIC_LEN;
-//	PRINTFSEC("cc2420: Key OK ");
-//	for(i=0; i<CC2420RAM_SEC_LEN; i++) PRINTFSEC("%.2X",network_key[i]);
-//	PRINTFSEC("\n");
 
 	/* Set security control register 0 */
 	reg = getreg(CC2420_SECCTRL0);
@@ -1063,9 +1031,6 @@ cc2420_initLinkLayerSec(void)
 
 	setreg(CC2420_SECCTRL0, reg);
 	PRINTFSEC("cc2420: SEC0 reg: %.2X\n", reg);
-
-//	/* Set the in-line network key */
-//	CC2420_WRITE_RAM_REV(&network_key[0], CC2420RAM_KEY0, CC2420RAM_SEC_LEN);
 
 	PRINTFSEC("cc2420: Init CBC MAC complete\n");
 }

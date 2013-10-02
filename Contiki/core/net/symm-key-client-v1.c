@@ -67,16 +67,6 @@
 #define VERIFY_REQUEST_MSG_SIZE	15	/* encryption_nonce(3) | msg_type(1) | encrypted_verify_nonce(3) | MIC(8) */
 #define VERIFY_REPLY_MSG_SIZE	15	/* encryption_nonce(3) | msg_type(1) | encrypted_remote_verify_nonce(3) | MIC(8) */
 
-//struct device_sec_data {
-//  uip_ipaddr_t  	remote_device_id;
-//  msgnonce_type_t	msg_cntr;
-//  uint8_t			nonce_cntr;
-//  msgnonce_type_t 	remote_msg_cntr;
-//  uint8_t 	 		remote_nonce_cntr;
-//  uint8_t			key_freshness;
-//  uint8_t			session_key[16];
-//};
-
 /* Global variables */
 struct device_sec_data devices[MAX_DEVICES];
 static short state;
@@ -186,69 +176,16 @@ reset_key_exchange_timer(void) {
 void
 keymanagement_init(void)
 {
-//	uint8_t temp_sec_device_list[(MAX_DEVICES * SEC_DATA_SIZE)];
-//	uint8_t temp_sec_nonce_list[(MAX_DEVICES * NONCE_CNTR_SIZE) + KEY_NONCE_SIZE];
-//	uint8_t i;
-
 	/* State to idle */
 	state = S_IDLE;
 	key_exchange_state = S_KEY_EXCHANGE_IDLE;
 
-//	/* Read the security data from flash and populate device list and nonces */
-//	xmem_pread(temp_sec_nonce_list, ((MAX_DEVICES * NONCE_CNTR_SIZE) + KEY_NONCE_SIZE), APP_NONCE_DATA);
-//	xmem_pread(temp_sec_device_list, (MAX_DEVICES * SEC_DATA_SIZE), APP_SECURITY_DATA);
+	request_nonce=1;
+	verify_nonce=1;
 
-//	/* Set key-exchange nonce counters and increment them */
-//	request_nonce = get16(temp_sec_nonce_list, 0);
-//	verify_nonce = get16(temp_sec_nonce_list, 2);
-
-//	/* Security trade-off (If nonce value overflows, replay attacks are easy) */
-//	request_nonce++;
-//	verify_nonce++;
-//	set16(temp_sec_nonce_list, 0, request_nonce);
-//	set16(temp_sec_nonce_list, 2, verify_nonce);
-
-	amount_of_known_devices = 0;
-//	for(i=0; i<MAX_DEVICES; i++) {
-//		/* Set device_id */
-//		memcpy(&devices[i].remote_device_id.u8[0], &temp_sec_device_list[(i*SEC_DATA_SIZE)], DEVICE_ID_SIZE);
-//
-//		/* Set nonce counter (Must be equal or greater than 1) */
-//		devices[i].nonce_cntr = temp_sec_nonce_list[((i*NONCE_CNTR_SIZE)+KEY_NONCE_SIZE)];
-//		PRINTFSECKEY("key_init device: %d nonce: %d\n",devices[i].remote_device_id.u8[15],devices[i].nonce_cntr);
-//
-//		/* Reset message counter */
-//		devices[i].msg_cntr = 0;
-//
-//		/*
-//		 * Check if the nonce is empty else increment and add device. Because
-//		 * the nonce counter must be equal or greater than 1, we can verify
-//		 * that there still is useful information.
-//		 * The nonce is auto incremented every time the device resets this
-//		 * ensures that the nonce is never used twice.
-//		 * */
-//		if(devices[i].nonce_cntr != 0) {
-//			if(devices[i].nonce_cntr == 0xff) {
-//				/* Request new key */
-//				devices[i].key_freshness = EXPIRED;
-//				state = S_REQUEST_KEY;
-//			} else {
-//				/* Increment nonces to allow the key to stay fresh */
-//				devices[i].key_freshness = FRESH;
-//				devices[i].nonce_cntr++;
-//				temp_sec_nonce_list[((i*NONCE_CNTR_SIZE)+KEY_NONCE_SIZE)]++;
-//			}
-//			amount_of_known_devices++;
-//		}
-//	}
+	amount_of_known_devices = 1;
 
 	PRINTFSECKEY("key_init Devices: %d\n", amount_of_known_devices);
-
-	/* Write nonce counters back to flash */
-//	if(amount_of_known_devices > 0) {
-//		xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_NONCE_DATA);
-//		xmem_pwrite(temp_sec_nonce_list, ((MAX_DEVICES * NONCE_CNTR_SIZE) + KEY_NONCE_SIZE), APP_NONCE_DATA);
-//	}
 
 	/* Start process */
 	process_start(&keymanagement_process, NULL);
@@ -314,7 +251,7 @@ keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8
 		 */
 		devices[dest_index].nonce_cntr++;
 		devices[dest_index].msg_cntr = 0;
-		devices[dest_index].key_freshness = UPDATE_NONCE;
+		devices[dest_index].key_freshness = FRESH;
 	}
 
 	/* Get Session key from flash */
@@ -379,7 +316,7 @@ keymanagement_decrypt_packet(uip_ipaddr_t *remote_device_id, uint8_t *data, uint
 
 	int src_index;
 
-	/* Check if source address is known !!!!!!!!!!!!!!*/
+	/* Check if source address is known */
 	src_index = search_device_id(remote_device_id);
 
 	if(src_index < 0) return DEVICE_NOT_FOUND_RX;
@@ -536,14 +473,6 @@ add_device_id(uip_ipaddr_t* curr_device_id)
 static void
 set_session_key_of_index(int index)
 {
-//	uint8_t temp_sec_data[SEC_KEY_SIZE];
-//
-//	/* Read Session key from flash memory */
-//	xmem_pread(temp_sec_data, SEC_KEY_SIZE, (APP_SECURITY_DATA+(index*SEC_DATA_SIZE)+SEC_KEY_OFFSET));
-//
-//	/* Set the application session key */
-//	CC2420_WRITE_RAM_REV(&temp_sec_data[0], CC2420RAM_KEY1, SEC_KEY_SIZE);
-
 	CC2420_WRITE_RAM_REV(&devices[index].session_key[0], CC2420RAM_KEY1, SEC_KEY_SIZE);
 }
 
@@ -577,26 +506,7 @@ find_index_for_request(keyfreshness_flags_type_t search_option)
 static void
 update_nonce(uint8_t index)
 {
-//	uint8_t temp_sec_nonce_list[(MAX_DEVICES * NONCE_CNTR_SIZE) + KEY_NONCE_SIZE];
-//
-//	/* Read the security data from flash and populate nonce list */
-//	xmem_pread(temp_sec_nonce_list, ((MAX_DEVICES * NONCE_CNTR_SIZE) + KEY_NONCE_SIZE), APP_NONCE_DATA);
-//
-//	/* Update nonce */
-//	if(index != (MAX_DEVICES+1)) {
-//		temp_sec_nonce_list[(index*NONCE_CNTR_SIZE)+KEY_NONCE_SIZE] = devices[index].nonce_cntr;
-//		/* Clear request */
-//		devices[index].key_freshness = FRESH;
-//	} else {
-//		set16(temp_sec_nonce_list, 0, request_nonce);
-//		set16(temp_sec_nonce_list, 2, verify_nonce);
-//		/* Clear request */
-//		update_key_exchange_nonce = 0;
-//	}
-//
-//	/* Write back to flash memory */
-//	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_NONCE_DATA);
-//	xmem_pwrite(temp_sec_nonce_list, ((MAX_DEVICES * NONCE_CNTR_SIZE) + KEY_NONCE_SIZE), APP_NONCE_DATA);
+	devices[index].key_freshness = FRESH;
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -609,18 +519,7 @@ update_nonce(uint8_t index)
 static void
 update_key_and_device_id(uint8_t *sessionkey)
 {
-//	uint8_t temp_sec_device_list[(MAX_DEVICES * SEC_DATA_SIZE)];
-//
-//	/* Read the security data from flash and populate device list */
-//	xmem_pread(temp_sec_device_list, (MAX_DEVICES * SEC_DATA_SIZE), APP_SECURITY_DATA);
-//
-//	/* Update key */
-//	memcpy(&temp_sec_device_list[(curr_device_index * SEC_DATA_SIZE)], &devices[curr_device_index].remote_device_id.u8[0], DEVICE_ID_SIZE);
-//	memcpy(&temp_sec_device_list[(curr_device_index * SEC_DATA_SIZE)+16], sessionkey, SEC_KEY_SIZE);
-//
-//	/* Write back to flash memory */
-//	xmem_erase(XMEM_ERASE_UNIT_SIZE, APP_SECURITY_DATA);
-//	xmem_pwrite(temp_sec_device_list, (MAX_DEVICES * SEC_DATA_SIZE), APP_SECURITY_DATA);
+
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -680,6 +579,11 @@ send_key_exchange_packet(void)
 	if(send_tries >= MAX_SEND_TRIES) return;
 
 	switch(key_exchange_state) {
+		case S_INIT_REQUEST:
+			/* Send packet to remote device */
+			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &temp_remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+			break;
+
 		case S_INIT_REPLY:	/* | request_nonce(3) | */
 			/* Create message */
 			init_reply_message();
@@ -975,7 +879,6 @@ parse_comm_reply_message(uint8_t *data, uip_ipaddr_t *remote_device_id) {
 	devices[curr_device_index].key_freshness = UPDATE_NONCE;
 
 	/* Store security data */
-//	update_key_and_device_id(&data[SESSIONKEY_OFFSET]);
 	memcpy(&devices[curr_device_index].session_key[0], &data[SESSIONKEY_OFFSET], SEC_KEY_SIZE);
 
 	/* Increment request nonce */
