@@ -332,6 +332,9 @@ keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8
 	for(i=0; i < MSG_NONCE_SIZE; i++) tempbuf[i] = (devices[dest_index].msg_cntr >> (((MSG_NONCE_SIZE-1)-i)*8)) & 0xff;
 	tempbuf[MSG_NONCE_SIZE] = devices[dest_index].nonce_cntr;
 
+	/* Set Associated data */
+	adata_len = adata_len + NONCE_SIZE;
+
 	/* Copy data to temp buf */
 	memcpy(&tempbuf[NONCE_SIZE], data, *data_len);
 
@@ -396,6 +399,9 @@ keymanagement_decrypt_packet(uip_ipaddr_t *remote_device_id, uint8_t *data, uint
 
 	/* Get key for decryption */
 	set_session_key_of_index(src_index);
+
+	/* Set Associated data */
+	adata_len = adata_len + NONCE_SIZE;
 
 	/* Decrypt message */
 	if(!(cc2420_decrypt_ccm(data, &devices[src_index].remote_device_id.u8[0], &src_msg_cntr, &src_nonce_cntr, data_len, adata_len))) return DECRYPT_FAILED ;
