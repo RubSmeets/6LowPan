@@ -51,7 +51,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define DEBUG DEBUG_NONE
+#define DEBUG 1 //DEBUG_NONE
 #include "net/uip-debug.h"
 
 uint16_t dag_id[] = {0x1111, 0x1100, 0, 0, 0, 0, 0, 0x0011};
@@ -67,10 +67,19 @@ static uint8_t prefix_set;
 #define SLIP_SEC_PRE		'+'
 #define SLIP_SEC_KEY_REQ	'K'
 
-static struct uip_udp_conn *server_conn;
 static uint8_t key_set;
 
 static void request_key(void);
+#endif
+
+#if ENABLE_CCM_APPLICATION & SEC_SERVER
+
+#define UDP_CLIENT_SEC_PORT 5446
+#define UDP_SERVER_SEC_PORT 5444
+
+static struct uip_udp_conn *server_conn;
+
+static void forward_packet_slip(uint8_t *data, uint16_t len);
 #endif
 
 PROCESS(border_router_process, "Border router process");
@@ -401,18 +410,18 @@ PROCESS_THREAD(border_router_process, ev, data)
   print_local_addresses();
 #endif
 
-#if ENABLE_CBC_LINK_SECURITY
-//   /*
-//	* new connection with remote host at port 0
-//	* to allow multiple remote ports on the same
-//	* connection
-//	*/
-//	sec_conn = udp_new(NULL, 0, NULL);
-//	if(sec_conn == NULL) {
-//		PRINTFSECKEY("No UDP conn, exiting proc!\n");
-//		PROCESS_EXIT();
-//	}
-//	udp_bind(sec_conn, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+#if ENABLE_CCM_APPLICATION & SEC_SERVER
+   /*
+	* new connection with remote host at port 0
+	* to allow multiple remote ports on the same
+	* connection
+	*/
+  	server_conn = udp_new(NULL, UIP_HTONS(UDP_CLIENT_SEC_PORT), NULL);
+	if(server_conn == NULL) {
+		PRINTF("No UDP conn, exiting proc!\n");
+		PROCESS_EXIT();
+	}
+	udp_bind(server_conn, UIP_HTONS(UDP_SERVER_SEC_PORT));
 #endif
 
   while(1) {
@@ -421,6 +430,19 @@ PROCESS_THREAD(border_router_process, ev, data)
       PRINTF("Initiating global repair\n");
       rpl_repair_root(RPL_DEFAULT_INSTANCE);
     }
+#if ENABLE_CCM_APPLICATION & SEC_SERVER
+    else if(ev == tcpip_event) {
+    	/* Check if there is data to be processed */
+		if(uip_newdata()) {
+			PRINTF("edg: new data\n");
+			/* Check if we have the right connection */
+			if(uip_udp_conn->lport == UIP_HTONS(UDP_SERVER_SEC_PORT)) {
+				PRINTF("edg: right port\n");
+				forward_packet_slip((uint8_t *) uip_appdata, uip_datalen());
+			}
+		}
+	}
+#endif
   }
 
   PROCESS_END();
@@ -447,6 +469,32 @@ set_key(uint8_t *key)
 	PRINTF("Setting key\n");
 	/* write key to cc2420 reg */
 	CC2420_WRITE_RAM_REV(&key[0], CC2420RAM_KEY0, 16);
+}
+
+#endif
+
+#if ENABLE_CCM_APPLICATION & SEC_SERVER
+/*---------------------------------------------------------------------------*/
+static void
+forward_packet_slip(uint8_t *data, uint16_t len)
+{
+	/* Check if the node already did a requesting */
+
+	/* Forward packet over slip */
+	uip_buf[0] = SLIP_SEC_PRE;
+	slip_send();
+}
+
+/*---------------------------------------------------------------------------*/
+static void
+send_comm_reply(uint8_t *msg)
+{
+	uint8_t temp_buf[50];
+
+	/* write key to cc2420 reg */
+	CC2420_WRITE_RAM_REV(&msg[0], CC2420RAM_KEY1, 16);
+
+	if(!cc2420_encrypt_ccm(temp_buf, &curr_ip->u8[0], &devices[dest_index].msg_cntr, &devices[dest_index].nonce_cntr, &total_len, adata_len)) return;
 }
 
 #endif

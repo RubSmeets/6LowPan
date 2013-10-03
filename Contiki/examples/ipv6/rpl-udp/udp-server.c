@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include "dev/xmem.h"
 
 #define DEBUG DEBUG_PRINT
 #include "net/uip-debug.h"
@@ -170,6 +171,9 @@ PROCESS_THREAD(udp_server_process, ev, data)
     if(ev == tcpip_event) {
       tcpip_handler();
     } else if (ev == sensors_event && data == &button_sensor) {
+      PRINTF("Erase keys\n");
+      xmem_erase(XMEM_ERASE_UNIT_SIZE, MAC_SECURITY_DATA);
+
       PRINTF("Initiaing global repair\n");
       rpl_repair_root(RPL_DEFAULT_INSTANCE);
     }

@@ -422,7 +422,7 @@ main(int argc, char **argv)
   print_processes(autostart_processes);
   autostart_start(autostart_processes);
 
-#if ENABLE_CCM_APPLICATION
+#if ENABLE_CCM_APPLICATION & SEC_CLIENT
   keymanagement_init();
 #endif
 

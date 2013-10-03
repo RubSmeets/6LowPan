@@ -100,8 +100,10 @@ send_packet(void *ptr)
   sprintf(&buf[data_ptr], "XXXXXXXXOOOOOOOOXXXXXXXXOOOOOOOO%d", seq_id);
 
   	uint8_t i;
-    PRINTF("before: ");
-    for(i=0; i<data_len; i++) PRINTF("%.2x",buf[i]);
+    PRINTF("before: %02x\n", buf[0]);
+
+    PRINTF("addr: ");
+    for(i=0; i<16; i++) PRINTF("%.2x",server_ipaddr.u8[i]);
     PRINTF("\n");
 
     data_ptr = keymanagement_send_encrypted_packet(client_conn, (uint8_t *)buf, &data_len, 0, &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
@@ -124,8 +126,8 @@ send_packet(void *ptr)
 //	  //for(i=0; i<35; i++) PRINTF("%.2x",(uint8_t)buf[i]);
 //	  //PRINTF("\n");
 //  }
-//  uip_udp_packet_sendto(client_conn, &buf[data_ptr], 26,
-//                        &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
+  uip_udp_packet_sendto(client_conn, &buf[data_ptr], 26,
+                        &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -174,7 +176,8 @@ set_global_address(void)
    uip_ip6addr(&server_ipaddr, 0xaaaa, 0, 0, 0, 0, 0, 0, 1);
 #elif 1
 /* Mode 2 - 16 bits inline */
-  uip_ip6addr(&server_ipaddr, 0xaaaa, 0, 0, 0, 0, 0x00ff, 0xfe00, 1);
+  //uip_ip6addr(&server_ipaddr, 0xaaaa, 0, 0, 0, 0, 0x00ff, 0xfe00, 1);
+   uip_ip6addr(&server_ipaddr, 0xaaaa, 0, 0, 0, 0xc30c, 0, 0, 2);
 #else
 /* Mode 3 - derived from server link-local (MAC) address */
   uip_ip6addr(&server_ipaddr, 0xaaaa, 0, 0, 0, 0x0250, 0xc2ff, 0xfea8, 0xcd1a); //redbee-econotag

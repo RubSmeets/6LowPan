@@ -87,12 +87,12 @@
 #endif
 */
 
-#define DEBUG_SEC 1
+#define DEBUG_SEC 0
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
-#define PRINTFSEC(...)
+#define PRINTFSEC(...) printf(__VA_ARGS__)
 #define PRINTFSECAPP(...)
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
@@ -739,6 +739,9 @@ cc2420_read(void *buf, unsigned short bufsize)
 
   cc2420_packets_read++;
 
+  getrxbyte(&len);
+  PRINTFSEC("len: %d\n", len);
+
 #if 0
   getrxbyte(&len);
   getrxdata(buf, len - AUX_LEN);
@@ -756,14 +759,11 @@ cc2420_read(void *buf, unsigned short bufsize)
    * these packets aren't encrypted and give errors when performing
    * decryption.
    */
-  if(bufsize != ACK_PACKET_SIZE) {
+  if(len != (ACK_PACKET_SIZE + AUX_LEN)) {
 	  strobe(CC2420_SRXDEC);
 	  BUSYWAIT_UNTIL(!(status() & BV(CC2420_ENC_BUSY)), RTIMER_SECOND);
   }
 #endif
-
-  getrxbyte(&len);
-  PRINTFSEC("len: %d\n", len);
 
   if(len > CC2420_MAX_PACKET_LEN) {
     /* Oops, we must be out of sync. */
@@ -792,7 +792,7 @@ cc2420_read(void *buf, unsigned short bufsize)
    * Check if we are receiving an ACK-packet. They don't have
    * a MIC message appended.
    */
-  if(bufsize != ACK_PACKET_SIZE) {
+  if(len != (ACK_PACKET_SIZE + AUX_LEN)) {
 	  getrxdata(buf, len - AUX_LEN - mic_len);
 
 	  uint8_t mic_code[mic_len];
@@ -878,7 +878,7 @@ cc2420_read(void *buf, unsigned short bufsize)
    * ACK-packet doens't have MIC message appended. Therefore
    * we don't need to subtract the mic-length from the total len.
    */
-  if(bufsize != ACK_PACKET_SIZE) {
+  if(len != (ACK_PACKET_SIZE + AUX_LEN)) {
 	  return len - AUX_LEN - mic_len;
   } else {
 	  return len - AUX_LEN;
@@ -1068,8 +1068,8 @@ setNonce(unsigned short RX_nTX, uint8_t *p_address_nonce, uint32_t *p_msg_ctr, u
 	/* NOG MAKEN DAT JE OOK KAN ENCRYPTEREN ZONDER ADATA!!!!!!*/
 
 	nonce[0] =  0x00 | 0x01 | 0x08;
-	memcpy(nonce+1, p_address_nonce, 8);	/* Setting source address */
-	nonce[9] = 0xFF & (*p_msg_ctr>>24);		/* Setting frame counter */
+	memcpy(&nonce[1], &p_address_nonce[8], 8);	/* Setting source address */
+	nonce[9] = 0xFF & (*p_msg_ctr>>24);			/* Setting frame counter */
 	nonce[10] = 0xFF & (*p_msg_ctr>>16);
 	nonce[11] = 0xFF & (*p_msg_ctr>>8);
 	nonce[12] = 0xFF & (*p_msg_ctr);
