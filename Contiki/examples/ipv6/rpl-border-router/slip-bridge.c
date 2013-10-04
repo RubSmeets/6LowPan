@@ -53,6 +53,9 @@ void set_prefix_64(uip_ipaddr_t *);
 
 #if ENABLE_CBC_LINK_SECURITY
 void set_key(uint8_t *key);
+#endif
+
+#if ENABLE_CCM_APPLICATION & SEC_SERVER
 void send_comm_reply(uint8_t *msg);
 #endif
 

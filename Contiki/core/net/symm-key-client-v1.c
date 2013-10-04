@@ -275,7 +275,7 @@ keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8
 	/* Copy data to temp buf */
 	memcpy(&tempbuf[NONCE_SIZE], data, *data_len);
 
-	total_len = *data_len + NONCE_SIZE;
+	total_len = *data_len;
 
 	PRINTFSECKEY("msg and nonce B: %d, %d\n", devices[dest_index].msg_cntr, devices[dest_index].nonce_cntr);
 
@@ -336,6 +336,9 @@ keymanagement_decrypt_packet(uip_ipaddr_t *remote_device_id, uint8_t *data, uint
 
 	/* Get key for decryption */
 	set_session_key_of_index(src_index);
+
+	/* Set Associated data */
+	adata_len = adata_len + NONCE_SIZE;
 
 	/* Decrypt message */
 	if(!(cc2420_decrypt_ccm(data, &devices[src_index].remote_device_id.u8[0], &src_msg_cntr, &src_nonce_cntr, data_len, adata_len))) return DECRYPT_FAILED ;
@@ -647,11 +650,6 @@ comm_request_message(void) {
 	/* Get own ip address */
 	uip_ds6_select_src(&curr_ip, &devices[0].remote_device_id);
 
-	uint8_t i;
-	PRINTFSECKEY("addr_edg: ");
-	for(i=0;i<16;i++) PRINTFSECKEY("%02x ", curr_ip.u8[i]);
-	PRINTFSECKEY("\n");
-
 	/* Copy own ID */
 	memcpy(&keypacketbuf[1], &curr_ip.u8[0], DEVICE_ID_SIZE);
 	/* Copy remote ID */
@@ -746,6 +744,8 @@ parse_packet(uint8_t *data, uint16_t len)
 		return 0;
 	}
 
+	PRINTFSECKEY("msg_type: %02x\n", data[3]);
+
 	switch(key_exchange_state) {
 		case S_KEY_EXCHANGE_IDLE:
 			if(data[0] == S_INIT_REQUEST && len == INIT_REQUEST_MSG_SIZE) {
@@ -796,7 +796,11 @@ parse_packet(uint8_t *data, uint16_t len)
 
 		case S_INIT_REPLY:	   /* | request_nonce(3) | */
 			if(data[3] == S_COMM_REPLY && len == COMM_REPLY_MSG_SIZE) {
+				PRINTFSECKEY("Reply: OK\n");
 				if(keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, data, &temp_data_len, ADATA_KEYEXCHANGE) == DECRYPT_OK) {
+					PRINTFSECKEY("data decr: ");
+					for(i=0;i<len;i++) PRINTFSECKEY("%02x ", data[i]);
+					PRINTFSECKEY("\n");
 					/* Parse packet */
 					if(parse_comm_reply_message(data, &temp_remote_device_id)) {
 						/* Send verify message */
@@ -812,7 +816,11 @@ parse_packet(uint8_t *data, uint16_t len)
 
 		case S_COMM_REQUEST:   /* | remote_decryption_nonce(3) | msg_type(1) | request_nonce(3) | sessionkey(16) | id remote(16) | MIC(8) | */
 			if(data[3] == S_COMM_REPLY && len == COMM_REPLY_MSG_SIZE) {
+				PRINTFSECKEY("Req: OK\n");
 				if(keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, data, &temp_data_len, ADATA_KEYEXCHANGE) == DECRYPT_OK) {
+					PRINTFSECKEY("data decr: ");
+					for(i=0;i<len;i++) PRINTFSECKEY("%02x ", data[i]);
+					PRINTFSECKEY("\n");
 					/* Parse packet */
 					if(parse_comm_reply_message(data, &devices[curr_device_index].remote_device_id)) {
 						/* Wait for Verify message */

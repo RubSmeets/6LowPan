@@ -317,6 +317,7 @@ serial_to_tun(FILE *inslip, int outfd)
 				slip_send(slipfd, SLIP_END);
 			} else {
 				int b;
+				char address[16] = {0xaa,0xaa,0x00,0x00,0x00,0x00,0x00,0x00,0xc3,0x0c,0x00,0x00,0x00,0x00,0x00,0x01};
 				char session_key[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
 				char sensor_key[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
 
@@ -345,15 +346,20 @@ serial_to_tun(FILE *inslip, int outfd)
 				/* Request new key and update databases */
 
 				/* Send key over slip to be encrypted and sent to device 1*/
-				memcpy(&buf_reply[20], &uip.inbuf[33], 3); /* request nonce */
-				memcpy(&buf_reply[23], session_key[0], 16); /* session key */
-				memcpy(&buf_reply[39], &uip.inbuf[1], 16); /* req device id */
+				memcpy(&buf_reply[20], &uip.inbuf[34], 3); /* request nonce */
+				memcpy(&buf_reply[23], &session_key[0], 16); /* session key */
+				memcpy(&buf_reply[39], &uip.inbuf[2], 16); /* req device id */
 
 				slip_send(slipfd, '+');
 				slip_send(slipfd, 'R');
 				for(b = 0; b < 55; b++) {
 					/* need to call the slip_send_char for stuffing */
 					slip_send_char(slipfd, buf_reply[b]);
+				}
+
+				for(b = 0; b < 16; b++) {
+					/* need to call the slip_send_char for stuffing */
+					slip_send_char(slipfd, address[b]);
 				}
 
 				slip_send(slipfd, SLIP_END);

@@ -92,7 +92,7 @@
 #include <stdio.h>
 uint8_t *buf_temp;
 uint8_t p;
-#define PRINTFSEC(...) printf(__VA_ARGS__)
+#define PRINTFSEC(...)
 #define PRINTFSECAPP(...)
 #define PRINTF(...) printf(__VA_ARGS__)
 #else
@@ -1114,7 +1114,7 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *src_msg_cntr
 	flushrx();
 
 	/* Set RXFIFO */
-	tot_len = *data_len + 2;
+	tot_len = *data_len + AUX_LEN;
 	CC2420_WRITE_RXFIFO_BUF(&tot_len, 1);
 	CC2420_WRITE_RXFIFO_BUF(data, *data_len);
 
@@ -1131,6 +1131,9 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *src_msg_cntr
 	/* Restore security control reg 0 */
 	setreg(CC2420_SECCTRL0, reg_old);
 	PRINTFSECAPP("cc2420: Reg 0 restore: %.2x\n",reg_old);
+
+	/* Set associated data RX to 5 */
+	setAssociatedData(RX, adata_len);
 
 	return 1;
 }
@@ -1151,7 +1154,7 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *msg_cntr, ui
 	reg_old = getreg(CC2420_SECCTRL0);
 	reg = (CC2420_SECCTRL0_SEC_M_IDX << 2) | CC2420_SECCTRL0_RXFIFO_PROTECTION | CC2420_SECCTRL0_TXKEYSEL1 | CC2420_SECCTRL0_CCM;
 	setreg(CC2420_SECCTRL0, reg);
-	PRINTFSECAPP("cc2420: Reg 0: %.2x\n",reg);
+	PRINTF("cc2420: Reg 0: %.2x\n",reg);
 
 	/* Set associated data TX to 5 */
 	setAssociatedData(TX, adata_len);
@@ -1163,7 +1166,7 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *msg_cntr, ui
 	strobe(CC2420_SFLUSHTX);
 
 	/* Set TXFIFO */
-	tot_len = *data_len + APP_MIC_LEN + 2;
+	tot_len = *data_len + APP_MIC_LEN + AUX_LEN;
 	CC2420_WRITE_FIFO_BUF(&tot_len, 1);
 	CC2420_WRITE_FIFO_BUF(data, *data_len);
 
@@ -1176,10 +1179,13 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *msg_cntr, ui
 
 	/* Restore security control reg 0 */
 	setreg(CC2420_SECCTRL0, reg_old);
-	PRINTFSECAPP("cc2420: Reg 0 restore: %.2x\n",reg_old);
+	PRINTF("cc2420: Reg 0 restore: %.2x\n",reg_old);
+
+	/* Restore security control reg 1 */
+	setAssociatedData(TX, 0);
 
 	/* Update data_len with current value */
-	*data_len = tot_len-1;
+	*data_len = tot_len-AUX_LEN;
 
 	return 1;
 }

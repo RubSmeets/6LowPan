@@ -77,6 +77,9 @@ static void request_key(void);
 #define UDP_CLIENT_SEC_PORT 5446
 #define UDP_SERVER_SEC_PORT 5444
 
+#define COMM_REPLY_MSG_SIZE	39
+#define ADATA_APPLICATION	4
+
 static struct uip_udp_conn *server_conn;
 
 static void forward_packet_slip(uint8_t *data, uint16_t len);
@@ -478,23 +481,66 @@ set_key(uint8_t *key)
 static void
 forward_packet_slip(uint8_t *data, uint16_t len)
 {
+	uint8_t temp_data[40];
+
 	/* Check if the node already did a requesting */
 
+	/* Make slip packet */
+	temp_data[0] = SLIP_SEC_PRE;
+	memcpy(&temp_data[1], &data[0], len);
+
 	/* Forward packet over slip */
-	uip_buf[0] = SLIP_SEC_PRE;
-	slip_send();
+	slip_write(&temp_data[0], (len+1));
 }
 
 /*---------------------------------------------------------------------------*/
-static void
+void
 send_comm_reply(uint8_t *msg)
 {
 	uint8_t temp_buf[50];
+	uip_ipaddr_t toaddr;
+	uint16_t msg_cntr = 0;
+	uint8_t nonce_cntr = 0;
+	uint8_t tot_len = 0;
+	uint8_t i;
 
 	/* write key to cc2420 reg */
 	CC2420_WRITE_RAM_REV(&msg[0], CC2420RAM_KEY1, 16);
 
-	if(!cc2420_encrypt_ccm(temp_buf, &curr_ip->u8[0], &devices[dest_index].msg_cntr, &devices[dest_index].nonce_cntr, &total_len, adata_len)) return;
+	/* Get message to be encrypted */
+	memcpy(&temp_buf[0], &msg[16], COMM_REPLY_MSG_SIZE);
+
+	/* Get remote ip address */
+	memcpy(&toaddr.u8[0], &msg[39], 16);
+
+	PRINTF("edg: toaddr ");
+	for(i=0; i<16; i++) PRINTF("%02x ", toaddr.u8[i]);
+	PRINTF("\n");
+
+	/* Get nonce */
+	msg_cntr = ((uint16_t)temp_buf[0] << 8) | (uint16_t)temp_buf[1];
+	nonce_cntr = temp_buf[2];
+
+	PRINTF("edg: msg %02x nonce %02x\n", msg_cntr, nonce_cntr);
+
+	tot_len = COMM_REPLY_MSG_SIZE;
+
+	PRINTF("edg: data ");
+	for(i=0; i<tot_len; i++) PRINTF("%02x ", temp_buf[i]);
+	PRINTF("\n");
+
+	/* Encrypt message */
+	if(!cc2420_encrypt_ccm(temp_buf, &msg[55], &msg_cntr, &nonce_cntr, &tot_len, ADATA_APPLICATION)) {
+		PRINTF("edg: Encryption failed\n");
+		return;
+	}
+
+	PRINTF("edg: encrypt ");
+	for(i=0; i<tot_len; i++) PRINTF("%02x ", temp_buf[i+1]);
+	PRINTF("\n");
+
+	/* Send encrypted message over udp-connection */
+	uip_udp_packet_sendto(server_conn, &temp_buf[1], (int)tot_len, &toaddr, UIP_HTONS(UDP_CLIENT_SEC_PORT));
 }
 
 #endif
