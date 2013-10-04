@@ -39,13 +39,14 @@
 #define LENGTH_SIZE				1	/* To ensure that the data array stays inbounds */
 
 #define SEC_KEY_OFFSET			16
-#define ADATA_KEYEXCHANGE		4
+#define ADATA_KEYEXCHANGE		1
 
 /* timing defines */
 #define CHECK_INTERVAL		(CLOCK_SECOND)*5
 #define MAX_WAIT_TIME			2
 #define MAX_SEND_TRIES			2
 #define RETRANSMIT_DELAY		4
+#define MAX_WAIT_TIME_SEND    	6
 
 /* Different states */
 #define S_IDLE 			0
@@ -65,7 +66,7 @@
 #define INIT_REQUEST_MSG_SIZE	1	/* msg_type(1) */
 #define INIT_REPLY_MSG_SIZE		4	/* msg_type(1) | req_nonce(3) */
 #define COMM_REQUEST_MSG_SIZE	39	/* msg_type(1) | device_id(16) | remote_device_id(16) | req_nonce(3) | remote_req_nonce(3) */
-#define COMM_REPLY_MSG_SIZE		46	/* encryption_nonce(3) | msg_type(1) | encrypted_req_nonce(3) | encrypted_sessionkey(16) | encrypted_remote_device_id(16) | MIC(8) */
+#define COMM_REPLY_MSG_SIZE		47	/* encryption_nonce(3) | msg_type(1) | encrypted_req_nonce(3) | encrypted_sessionkey(16) | encrypted_remote_device_id(16) | MIC(8) */
 #define VERIFY_REQUEST_MSG_SIZE	15	/* encryption_nonce(3) | msg_type(1) | encrypted_verify_nonce(3) | MIC(8) */
 #define VERIFY_REPLY_MSG_SIZE	15	/* encryption_nonce(3) | msg_type(1) | encrypted_remote_verify_nonce(3) | MIC(8) */
 
@@ -648,7 +649,11 @@ key_exchange_protocol(void)
 	send_key_exchange_packet();
 
 	/* Increment send tries */
-	if(send_tries > RETRANSMIT_DELAY) 	send_tries = 0;
+	if(send_tries > MAX_WAIT_TIME_SEND) {
+	    /* Back to idle state if we didn't get response */
+	    key_exchange_state = S_KEY_EXCHANGE_IDLE;
+	    send_tries = 0;
+	}
 	else send_tries++;
 
 	return 1;
@@ -670,6 +675,11 @@ send_key_exchange_packet(void)
 	if(send_tries >= MAX_SEND_TRIES) return;
 
 	switch(key_exchange_state) {
+		case S_INIT_REQUEST:
+			/* Send packet to remote device */
+			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &devices[curr_device_index].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+			break;
+
 		case S_INIT_REPLY:	/* | request_nonce(3) | */
 			/* Create message */
 			init_reply_message();
@@ -726,13 +736,13 @@ init_reply_message(void) {
 /*-----------------------------------------------------------------------------------*/
 static void
 comm_request_message(void) {
-	uip_ipaddr_t *curr_ip = NULL;
+	uip_ipaddr_t curr_ip;
 
 	/* Get own ip address */
-	uip_ds6_select_src(curr_ip, &devices[0].remote_device_id);
+	uip_ds6_select_src(&curr_ip, &devices[0].remote_device_id);
 
 	/* Copy own ID */
-	memcpy(&keypacketbuf[1], &curr_ip->u8[0], DEVICE_ID_SIZE);
+	memcpy(&keypacketbuf[1], &curr_ip.u8[0], DEVICE_ID_SIZE);
 	/* Copy remote ID */
 	memcpy(&keypacketbuf[17], &devices[curr_device_index].remote_device_id.u8[0], DEVICE_ID_SIZE);
 	/* Copy request nonce */
@@ -804,7 +814,7 @@ parse_packet(uint8_t *data, uint16_t len)
 	uint8_t temp_data_len = len & 0xff;
 	uint8_t temp_verify_nonce[3];
 
-	if((key_exchange_idle_time == MAX_WAIT_TIME) && (key_exchange_state != S_KEY_EXCHANGE_IDLE)) {
+	if((key_exchange_idle_time == MAX_WAIT_TIME) && (key_exchange_state != S_KEY_EXCHANGE_IDLE) && (key_exchange_state != S_INIT_REQUEST)) {
 		key_exchange_state = S_KEY_EXCHANGE_IDLE;
 		reset_key_exchange_timer();
 		return 0;
@@ -842,14 +852,16 @@ parse_packet(uint8_t *data, uint16_t len)
 
 		case S_INIT_REQUEST:
 			if(data[0] == S_INIT_REPLY && len == INIT_REPLY_MSG_SIZE && send_tries > 0) {
-				/* Get the remote nonce */
-				memcpy(&remote_request_nonce[0], &data[1], 3);
+				if(memcmp(&UIP_IP_BUF->srcipaddr.u8[0], &devices[curr_device_index].remote_device_id.u8[0], DEVICE_ID_SIZE) == 0) {
+					/* Get the remote nonce */
+					memcpy(&remote_request_nonce[0], &data[1], 3);
 
-				key_exchange_state = S_COMM_REQUEST;
-				/* Send tries reset */
-				send_tries = 0;
-				/* Timer reset */
-				reset_key_exchange_timer();
+					key_exchange_state = S_COMM_REQUEST;
+					/* Send tries reset */
+					send_tries = 0;
+					/* Timer reset */
+					reset_key_exchange_timer();
+				}
 			}
 			break;
 
