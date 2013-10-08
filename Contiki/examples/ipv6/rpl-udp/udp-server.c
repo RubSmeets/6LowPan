@@ -60,7 +60,7 @@ static void
 tcpip_handler(void)
 {
   char *appdata;
-  uint8_t i;
+  uint8_t i, len;
 
   if(uip_newdata()) {
     appdata = (char *)uip_appdata;
@@ -71,6 +71,10 @@ tcpip_handler(void)
     PRINTF("%d",
            UIP_IP_BUF->srcipaddr.u8[sizeof(UIP_IP_BUF->srcipaddr.u8) - 1]);
     PRINTF("\n");
+
+    len = uip_datalen() & 0xff;
+    keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, (uint8_t *)uip_appdata, &len, 0);
+
 #if SERVER_REPLY
     PRINTF("DATA sending reply\n");
     uip_ipaddr_copy(&server_conn->ripaddr, &UIP_IP_BUF->srcipaddr);

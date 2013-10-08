@@ -66,6 +66,15 @@ uint16_t basedelay=0,delaymsec=0;
 uint32_t startsec,startmsec,delaystartsec,delaystartmsec;
 int timestamp = 0, flowcontrol=0;
 
+#if ENABLE_SECURITY
+uint8_t send_finished = 0;
+uint8_t req_nonce[3];
+uint8_t remote_nonce[3];
+uint8_t req_id[16];
+uint8_t remote_id[16];
+char buf_reply[60];
+#endif
+
 int ssystem(const char *fmt, ...)
      __attribute__((__format__ (__printf__, 1, 2)));
 void write_to_serial(int outfd, void *inbuf, int len);
@@ -276,9 +285,9 @@ serial_to_tun(FILE *inslip, int outfd)
 
     		  int b;
     		  char network_key[16] = {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5};
-    		  char sensor_key[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+    		  //char sensor_key[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
     		  char address[16] = {0xaa,0xaa,0x00,0x00,0x00,0x00,0x00,0x00,0xc3,0x0c,0x00,0x00,0x00,0x00,0x00,0x01};
-    		  //char sensor_key[16] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
+    		  char sensor_key[16] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
 
     		  slip_send(slipfd, 'A');
     		  slip_send(slipfd, 'R');
@@ -299,6 +308,12 @@ serial_to_tun(FILE *inslip, int outfd)
 
     	  }
       } else if(uip.inbuf[0] == '+') {
+    	  	int b;
+			char address[16] = {0xaa,0xaa,0x00,0x00,0x00,0x00,0x00,0x00,0xc3,0x0c,0x00,0x00,0x00,0x00,0x00,0x01};
+			char session_key[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+			char sensor_key[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+			char sensor_key2[16] = {2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2};
+
 			if(uip.inbuf[1] == 'K') {
 				/* Security network key request */
 				char network_key[16] = {5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5};
@@ -315,26 +330,12 @@ serial_to_tun(FILE *inslip, int outfd)
 					slip_send_char(slipfd, network_key[b]);
 				}
 				slip_send(slipfd, SLIP_END);
-			} else {
-				int b;
-				char address[16] = {0xaa,0xaa,0x00,0x00,0x00,0x00,0x00,0x00,0xc3,0x0c,0x00,0x00,0x00,0x00,0x00,0x01};
-				char session_key[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
-				char sensor_key[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-
+			} else if(uip.inbuf[1] == 'C') {
 				/* Print some info */
 				fprintf(stderr,"*** Request communication key\n");
 				fprintf(stderr,"*** Data ");
-				for(b=0; b<inbufptr-1; b++) fprintf(stderr,"%02x ", uip.inbuf[b+1]);
+				for(b=0; b<inbufptr-1; b++) fprintf(stderr,"%02x ", uip.inbuf[b+2]);
 				fprintf(stderr,"\n");
-
-				char buf_reply[60];
-
-				memcpy(&buf_reply[0], &sensor_key[0], 16); /* sensor key */
-				buf_reply[16] = 0;	/* encryp nonce */
-				buf_reply[17] = 1;
-				buf_reply[18] = 0;
-
-				buf_reply[19] = 3;	/* msg_type */
 
 				/* Form reply communication message */
 				/* Check if the request is not already processed (replay) by checking nonce values as well*/
@@ -345,10 +346,24 @@ serial_to_tun(FILE *inslip, int outfd)
 
 				/* Request new key and update databases */
 
-				/* Send key over slip to be encrypted and sent to device 1*/
-				memcpy(&buf_reply[20], &uip.inbuf[34], 3); /* request nonce */
+				/* Parse message */
+				send_finished = 0;
+				memcpy(&req_nonce[0], &uip.inbuf[35], 3); /* request nonce */
+				memcpy(&req_id[0], &uip.inbuf[3], 16); /* req device id */
+				memcpy(&remote_nonce[0], &uip.inbuf[38], 3); /* remote request nonce */
+				memcpy(&remote_id[0], &uip.inbuf[19], 16); /* remote device id */
+
+				/* Make message */
+
+				memcpy(&buf_reply[0], &sensor_key[0], 16); /* sensor key */
+				buf_reply[16] = 0;	/* encryp nonce */
+				buf_reply[17] = 1;
+				buf_reply[18] = 0;
+
+				buf_reply[19] = 3;	/* msg_type */
+				memcpy(&buf_reply[20], &req_nonce[0], 3); /* request nonce */
 				memcpy(&buf_reply[23], &session_key[0], 16); /* session key */
-				memcpy(&buf_reply[39], &uip.inbuf[2], 16); /* req device id */
+				memcpy(&buf_reply[39], &req_id[0], 16); /* req device id */
 
 				slip_send(slipfd, '+');
 				slip_send(slipfd, 'R');
@@ -364,11 +379,31 @@ serial_to_tun(FILE *inslip, int outfd)
 
 				slip_send(slipfd, SLIP_END);
 
-				/* Send key over slip to be encrypted and sent to device 2*/
-//				slip_send(slipfd, '+');
-//				slip_send(slipfd, 'R');
-//
-//				slip_send(slipfd, SLIP_END);
+			} else if((uip.inbuf[1] == 'S') && (send_finished == 0)) {
+				send_finished = 1;
+				memcpy(&buf_reply[0], &sensor_key2[0], 16); /* sensor key */
+				buf_reply[16] = 0;	/* encryp nonce */
+				buf_reply[17] = 1;
+				buf_reply[18] = 0;
+
+				buf_reply[19] = 3;	/* msg_type */
+				memcpy(&buf_reply[20], &remote_nonce[0], 3); /* request nonce */
+				memcpy(&buf_reply[23], &session_key[0], 16); /* session key */
+				memcpy(&buf_reply[39], &remote_id[0], 16);   /* req device id */
+
+				slip_send(slipfd, '+');
+				slip_send(slipfd, 'R');
+				for(b = 0; b < 55; b++) {
+					/* need to call the slip_send_char for stuffing */
+					slip_send_char(slipfd, buf_reply[b]);
+				}
+
+				for(b = 0; b < 16; b++) {
+					/* need to call the slip_send_char for stuffing */
+					slip_send_char(slipfd, address[b]);
+				}
+
+				slip_send(slipfd, SLIP_END);
 			}
 
 #endif

@@ -87,7 +87,7 @@
 #endif
 */
 
-#define DEBUG_SEC 0
+#define DEBUG_SEC 1
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;
@@ -1094,10 +1094,11 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *src_msg_cntr
 	unsigned int stats;
 	uint8_t  tot_len;
 	uint16_t reg_old, reg;
+	uint32_t tmp_src_msg_cntr = 0;
 
-	/* Check if we are receiving or encrypting */
+	/* Check if we are encrypting */
 	stats = status();
-	if((stats & BV(CC2420_ENC_BUSY)) || (receive_on==1)) return 0;
+	if(stats & BV(CC2420_ENC_BUSY)) return 0;
 
 	/* Set security control reg 0 */
 	reg_old = getreg(CC2420_SECCTRL0);
@@ -1108,7 +1109,8 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *src_msg_cntr
 	setAssociatedData(RX, adata_len);
 
 	/* Set Nonce Rx */
-	setNonce(RX, address_nonce, (uint32_t*)src_msg_cntr, src_nonce_cntr);
+	tmp_src_msg_cntr = (uint32_t)*src_msg_cntr;
+	setNonce(RX, address_nonce, &tmp_src_msg_cntr, src_nonce_cntr);
 
 	/* Flush the RXFIFO */
 	flushrx();
@@ -1132,8 +1134,11 @@ cc2420_decrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *src_msg_cntr
 	setreg(CC2420_SECCTRL0, reg_old);
 	PRINTFSECAPP("cc2420: Reg 0 restore: %.2x\n",reg_old);
 
-	/* Set associated data RX to 5 */
-	setAssociatedData(RX, adata_len);
+	/* Restore security control reg 1 */
+	setAssociatedData(RX, 0);
+
+	/* Flush the RXFIFO */
+	flushrx();
 
 	return 1;
 }
@@ -1145,6 +1150,7 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *msg_cntr, ui
 	unsigned int stats;
 	uint8_t  tot_len;
 	uint16_t reg_old, reg;
+	uint32_t tmp_msg_cntr = 0;
 
 	/* Check if we are transmitting or encrypting */
 	stats = status();
@@ -1154,13 +1160,14 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *msg_cntr, ui
 	reg_old = getreg(CC2420_SECCTRL0);
 	reg = (CC2420_SECCTRL0_SEC_M_IDX << 2) | CC2420_SECCTRL0_RXFIFO_PROTECTION | CC2420_SECCTRL0_TXKEYSEL1 | CC2420_SECCTRL0_CCM;
 	setreg(CC2420_SECCTRL0, reg);
-	PRINTF("cc2420: Reg 0: %.2x\n",reg);
+	PRINTFSECAPP("cc2420: Reg 0: %.2x\n",reg);
 
 	/* Set associated data TX to 5 */
 	setAssociatedData(TX, adata_len);
 
 	/* Set Nonce tx */
-	setNonce(TX, address_nonce, (uint32_t*)msg_cntr, nonce_cntr);
+	tmp_msg_cntr = (uint32_t)*msg_cntr;
+	setNonce(TX, address_nonce, &tmp_msg_cntr, nonce_cntr);
 
 	/* Flush the TXFIFO */
 	strobe(CC2420_SFLUSHTX);
@@ -1179,7 +1186,7 @@ cc2420_encrypt_ccm(uint8_t *data, uint8_t *address_nonce, uint16_t *msg_cntr, ui
 
 	/* Restore security control reg 0 */
 	setreg(CC2420_SECCTRL0, reg_old);
-	PRINTF("cc2420: Reg 0 restore: %.2x\n",reg_old);
+	PRINTFSECAPP("cc2420: Reg 0 restore: %.2x\n",reg_old);
 
 	/* Restore security control reg 1 */
 	setAssociatedData(TX, 0);

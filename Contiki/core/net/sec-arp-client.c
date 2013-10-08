@@ -181,7 +181,7 @@ set_security_data(uint8_t *buf)
 	CC2420_WRITE_RAM_REV(&network_key[0], CC2420RAM_KEY0, KEY_SIZE);
 
 	/* Set sensor key and security app data */
-	devices[0].key_freshness = 0x00;
+	devices[0].key_freshness = 0x03;
 	devices[0].msg_cntr = 0;
 	devices[0].nonce_cntr = 1;
 	memcpy(&devices[0].remote_device_id.u8[0], &buf[APPLAYER_OFFSET], 16);

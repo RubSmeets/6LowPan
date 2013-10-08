@@ -56,7 +56,7 @@
 #include "net/uip-debug.h"
 
 #ifndef PERIOD
-#define PERIOD 40
+#define PERIOD 20
 #endif
 
 #define START_INTERVAL		(15 * CLOCK_SECOND)
@@ -91,7 +91,7 @@ send_packet(void *ptr)
   static int seq_id;
   char buf[MAX_PAYLOAD_LEN];
   uint8_t data_ptr = 0;
-  uint8_t data_len = 33;
+  uint8_t data_len = 26;
 
   seq_id++;
   PRINTF("DATA send to %d 'Hello %d'\n",
@@ -126,8 +126,8 @@ send_packet(void *ptr)
 //	  //for(i=0; i<35; i++) PRINTF("%.2x",(uint8_t)buf[i]);
 //	  //PRINTF("\n");
 //  }
-  uip_udp_packet_sendto(client_conn, &buf[data_ptr], 26,
-                        &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
+//  uip_udp_packet_sendto(client_conn, &buf[data_ptr], 26,
+//                        &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
 }
 /*---------------------------------------------------------------------------*/
 static void

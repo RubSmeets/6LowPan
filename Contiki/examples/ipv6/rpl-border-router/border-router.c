@@ -77,6 +77,9 @@ static void request_key(void);
 #define UDP_CLIENT_SEC_PORT 5446
 #define UDP_SERVER_SEC_PORT 5444
 
+#define SLIP_SEC_COMM		'C'
+#define SLIP_SEC_COMM_2		'S'
+
 #define COMM_REPLY_MSG_SIZE	39
 #define ADATA_APPLICATION	4
 
@@ -481,16 +484,17 @@ set_key(uint8_t *key)
 static void
 forward_packet_slip(uint8_t *data, uint16_t len)
 {
-	uint8_t temp_data[40];
+	uint8_t temp_data[41];
 
 	/* Check if the node already did a requesting */
 
 	/* Make slip packet */
 	temp_data[0] = SLIP_SEC_PRE;
-	memcpy(&temp_data[1], &data[0], len);
+	temp_data[1] = SLIP_SEC_COMM;
+	memcpy(&temp_data[2], &data[0], len);
 
 	/* Forward packet over slip */
-	slip_write(&temp_data[0], (len+1));
+	slip_write(&temp_data[0], (len+2));
 }
 
 /*---------------------------------------------------------------------------*/
@@ -506,6 +510,9 @@ send_comm_reply(uint8_t *msg)
 
 	/* write key to cc2420 reg */
 	CC2420_WRITE_RAM_REV(&msg[0], CC2420RAM_KEY1, 16);
+	PRINTF("edg: key ");
+	for(i=0; i<16; i++) PRINTF("%02x ", msg[i]);
+	PRINTF("\n");
 
 	/* Get message to be encrypted */
 	memcpy(&temp_buf[0], &msg[16], COMM_REPLY_MSG_SIZE);
@@ -529,6 +536,10 @@ send_comm_reply(uint8_t *msg)
 	for(i=0; i<tot_len; i++) PRINTF("%02x ", temp_buf[i]);
 	PRINTF("\n");
 
+	PRINTF("edg: enc_addr ");
+	for(i=0; i<16; i++) PRINTF("%02x ", msg[55+i]);
+	PRINTF("\n");
+
 	/* Encrypt message */
 	if(!cc2420_encrypt_ccm(temp_buf, &msg[55], &msg_cntr, &nonce_cntr, &tot_len, ADATA_APPLICATION)) {
 		PRINTF("edg: Encryption failed\n");
@@ -541,6 +552,11 @@ send_comm_reply(uint8_t *msg)
 
 	/* Send encrypted message over udp-connection */
 	uip_udp_packet_sendto(server_conn, &temp_buf[1], (int)tot_len, &toaddr, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+
+	/* Get message of device 2 */
+	temp_buf[0] = SLIP_SEC_PRE;
+	temp_buf[1] = SLIP_SEC_COMM_2;
+	slip_write(&temp_buf[0], 2);
 }
 
 #endif
