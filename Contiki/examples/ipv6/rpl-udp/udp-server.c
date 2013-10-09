@@ -40,6 +40,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "dev/xmem.h"
+#include "symm-key-client-v1.h"
 
 #define DEBUG DEBUG_PRINT
 #include "net/uip-debug.h"
@@ -73,7 +74,11 @@ tcpip_handler(void)
     PRINTF("\n");
 
     len = uip_datalen() & 0xff;
-    keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, (uint8_t *)uip_appdata, &len, 0);
+    keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, (uint8_t *)appdata, &len, 0);
+
+    PRINTF("DATA recv ");
+    for(i=0; i<uip_datalen(); i++)PRINTF("%c", appdata[i]);
+    PRINTF("\n");
 
 #if SERVER_REPLY
     PRINTF("DATA sending reply\n");

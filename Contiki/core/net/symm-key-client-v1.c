@@ -38,9 +38,12 @@
 #define KEY_NONCE_SIZE			4
 #define NONCE_CNTR_SIZE			1
 #define LENGTH_SIZE				1	/* To ensure that the data array stays inbounds */
-
-#define SEC_KEY_OFFSET			16
 #define ADATA_KEYEXCHANGE		1
+
+/* Register offsets */
+#define SEC_KEY_OFFSET			16
+#define EDGE_ROUTER_INDEX		0
+#define RESERVED_INDEX			1
 
 /* Timing defines */
 #define CHECK_INTERVAL		(CLOCK_SECOND)*5
@@ -81,11 +84,6 @@ static uint8_t send_tries;
 static struct uip_udp_conn *sec_conn;
 static uint8_t amount_of_known_devices;
 
-/* Temporary security data */
-static uint8_t curr_device_index;
-static uip_ipaddr_t temp_remote_device_id;
-static uint8_t temp_session_key[SEC_KEY_SIZE];
-
 /* Buffer variables */
 static uint16_t keypacketbuf_aligned[(MAX_MESSAGE_SIZE) / 2 + 1];
 static uint8_t *keypacketbuf = (uint8_t *)keypacketbuf_aligned;
@@ -101,12 +99,15 @@ static uint8_t remote_verify_nonce[3];
 static uint8_t update_key_exchange_nonce;
 
 /* Functions used in key management layer */
-static int  search_device_id(uip_ipaddr_t* curr_device_id);
+static int  search_device_id(uip_ipaddr_t* curr_device_id, uint8_t search_offset);
 static int  add_device_id(uip_ipaddr_t* curr_device_id);
 static void set_session_key_of_index(int index);
 static uint8_t find_index_for_request(keyfreshness_flags_type_t search_option);
 static void update_nonce(uint8_t index);
 static void remove_sec_device(uint8_t index);
+static void reset_sec_data(uint8_t index);
+static void copy_id_to_reserved(uint8_t index);
+static void store_reserved_sec_data(void);
 static uint8_t key_exchange_protocol(void);
 static void send_key_exchange_packet(void);
 static void init_reply_message(void);
@@ -115,7 +116,7 @@ static void verify_request_message(void);
 static void verify_reply_message(void);
 static void verify_ok_message(void);
 static short parse_packet(uint8_t *data, uint16_t len);
-static uint8_t parse_comm_reply_message(uint8_t *data, uip_ipaddr_t *remote_device_id);
+static uint8_t parse_comm_reply_message(uint8_t *data);
 static void update_key_and_device_id(uint8_t *sessionkey);
 
 /*---------------------------------------------------------------------------*/
@@ -188,10 +189,15 @@ keymanagement_init(void)
 	state = S_IDLE;
 	key_exchange_state = S_KEY_EXCHANGE_IDLE;
 
+	/* Set reserved spot for temporary security data */
+	devices[RESERVED_INDEX].key_freshness = RESERVED;
+
+	/* Init nonces */
 	request_nonce=1;
 	verify_nonce=1;
 
-	amount_of_known_devices = 1;
+	/* Edge router and reserved */
+	amount_of_known_devices = 2;
 
 	/* Start process */
 	process_start(&keymanagement_process, NULL);
@@ -222,7 +228,9 @@ keymanagement_send_encrypted_packet(struct uip_udp_conn *c, uint8_t *data, uint8
 
 	/* Check the destination IPv6-address */
 	if(uip_is_addr_unspecified(toaddr)) return ENCRYPT_FAILED;
-	dest_index = search_device_id(toaddr);
+	dest_index = search_device_id(toaddr,0);
+
+	PRINTFDEBUG("index: %d\n", dest_index);
 
 	if(dest_index < 0) {
 		/* try to add designated device */
@@ -324,8 +332,8 @@ keymanagement_decrypt_packet(uip_ipaddr_t *remote_device_id, uint8_t *data, uint
 	int src_index;
 
 	/* Check if source address is known */
-	src_index = search_device_id(remote_device_id);
-	PRINTFSECKEY("src_index %d\n", src_index);
+	src_index = search_device_id(remote_device_id,0);
+	PRINTFDEBUG("src_index %d\n", src_index);
 
 	if(src_index < 0) return DEVICE_NOT_FOUND_RX;
 
@@ -410,10 +418,11 @@ PROCESS_THREAD(keymanagement_process, ev, data)
 			/* Search for changes in security data */
 			switch(state) {
 				case S_IDLE:
-					curr_device_index = find_index_for_request(EXPIRED);
-					if(curr_device_index != MAX_DEVICES) {
+					device_index = find_index_for_request(EXPIRED);
+					if(device_index != MAX_DEVICES) {
 						state = S_REQUEST_KEY;
 						key_exchange_state = S_INIT_REQUEST;
+						copy_id_to_reserved(device_index);
 					}
 					break;
 
@@ -443,12 +452,12 @@ PROCESS_THREAD(keymanagement_process, ev, data)
  */
 /*-----------------------------------------------------------------------------------*/
 static int
-search_device_id(uip_ipaddr_t *curr_device_id)
+search_device_id(uip_ipaddr_t *curr_device_id, uint8_t search_offset)
 {
 	int index = DEVICE_NOT_FOUND;
 	uint8_t i;
 
-	for(i = 0; i < MAX_DEVICES; i++) {
+	for(i = search_offset; i < MAX_DEVICES; i++) {
 		if(memcmp(&curr_device_id->u8[0], &devices[i].remote_device_id.u8[0], DEVICE_ID_SIZE) == 0) {
 			index = i;
 			break;
@@ -468,8 +477,7 @@ add_device_id(uip_ipaddr_t* curr_device_id)
 	int index = DEVICE_NOT_FOUND;
 
 	if(amount_of_known_devices < MAX_DEVICES) {
-		/* Add device to known devices !!!!!!!!*/
-		//uip_ipaddr_copy(&devices[amount_of_known_devices].remote_device_id, curr_device_id);
+		/* Add device to known devices */
 		index = find_index_for_request(FREE_SPOT);
 		memcpy(&devices[index].remote_device_id.u8[0], &curr_device_id->u8[0], DEVICE_ID_SIZE);
 		amount_of_known_devices++;
@@ -549,11 +557,67 @@ update_key_and_device_id(uint8_t *sessionkey)
 static void
 remove_sec_device(uint8_t index)
 {
-	/* Reset device id */
-	memset(&devices[index].remote_device_id.u8[0], 0, DEVICE_ID_SIZE);
-	/* Set as free spot */
-	devices[index].key_freshness = FREE_SPOT;
+	reset_sec_data(index);
 	amount_of_known_devices--;
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
+ *	Reset security data from device at position "index"
+ *
+ *	@param current device_index															NIET AF!
+ */
+/*-----------------------------------------------------------------------------------*/
+static void
+reset_sec_data(uint8_t index)
+{
+	devices[index].nonce_cntr = 1;
+	devices[index].msg_cntr = 0;
+	devices[index].remote_msg_cntr = 0;
+	devices[index].remote_nonce_cntr = 0;
+
+	if(index != RESERVED_INDEX) {
+		/* Set as free spot */
+		devices[index].key_freshness = FREE_SPOT;
+		/* Reset device id */
+		memset(&devices[index].remote_device_id.u8[0], 0, DEVICE_ID_SIZE);
+	}
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
+ *	Copy the device id to the reserved spot for key-exchange
+ *
+ *	@param current device_index															NIET AF!
+ */
+/*-----------------------------------------------------------------------------------*/
+static void
+copy_id_to_reserved(uint8_t index)
+{
+	memcpy(&devices[RESERVED_INDEX].remote_device_id.u8[0], &devices[index].remote_device_id.u8[0], DEVICE_ID_SIZE);
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
+ *	Store the temporary security data in a free spot if not found						NIET AF!
+ */
+/*-----------------------------------------------------------------------------------*/
+static void
+store_reserved_sec_data(void)
+{
+	int index;
+
+	index = search_device_id(&devices[RESERVED_INDEX].remote_device_id,2);
+	if(index < 0) {
+		index = find_index_for_request(FREE_SPOT);
+	}
+
+	/* store security device data */
+	devices[index] = devices[RESERVED_INDEX];
+	devices[index].key_freshness = FRESH;
+
+	/* Reset RESERVED id */
+	memset(&devices[RESERVED_INDEX].remote_device_id.u8[0], 0, DEVICE_ID_SIZE);
 }
 
 /*-----------------------------------------------------------------------------------*/
@@ -579,17 +643,20 @@ key_exchange_protocol(void)
 	if(key_exchange_state == S_KEY_EXCHANGE_SUCCES) {
 		/* Key exchange is finished */
 		PRINTFDEBUG("key: Succes\n");
+		/* Store security data */
+		store_reserved_sec_data();
 		key_exchange_state = S_KEY_EXCHANGE_IDLE;
 		return 0;
 	} else if(key_exchange_state == S_KEY_EXCHANGE_FAILED) {
 		PRINTFDEBUG("key: Failed\n");
-		/* Key exchange failed remove device */
-		if(curr_device_index < MAX_DEVICES) {
-			remove_sec_device(curr_device_index);
-		}
+		/* Key exchange failed */
 		key_exchange_state = S_KEY_EXCHANGE_IDLE;
 		return 0;
 	} else if(key_exchange_state == S_KEY_EXCHANGE_IDLE) {
+		/* Reset RESERVED device */
+		reset_sec_data(RESERVED_INDEX);
+		/* Reset device id */
+		memset(&devices[RESERVED_INDEX].remote_device_id.u8[0], 0, DEVICE_ID_SIZE);
 		return 0;
 	}
 
@@ -631,21 +698,21 @@ send_key_exchange_packet(void)
 	switch(key_exchange_state) {
 		case S_INIT_REQUEST:
 			/* Send packet to remote device */
-			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &devices[curr_device_index].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &devices[RESERVED_INDEX].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
 			break;
 
 		case S_INIT_REPLY:	/* | request_nonce(3) | */
 			/* Create message */
 			init_reply_message();
 			/* Send packet to remote device */
-			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &temp_remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &devices[RESERVED_INDEX].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
 			break;
 
 		case S_COMM_REQUEST: /* | id curr(16) | id remote(16) | request_nonce(3) | remote request nonce(3) | */
 			/* Create message */
 			comm_request_message();
 			/* Send packet to edge-router */
-			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &devices[0].remote_device_id, UIP_HTONS(UDP_SERVER_SEC_PORT));
+			uip_udp_packet_sendto(sec_conn, keypacketbuf, tot_len, &devices[EDGE_ROUTER_INDEX].remote_device_id, UIP_HTONS(UDP_SERVER_SEC_PORT));
 			break;
 
 		case S_VERIFY_REQUEST: /* | Ek{verify nonce} | */
@@ -653,7 +720,7 @@ send_key_exchange_packet(void)
 			verify_request_message();
 			/* Send encrypted packet to remote device */
 			keymanagement_send_encrypted_packet(sec_conn, keypacketbuf, &tot_len, ADATA_KEYEXCHANGE,
-													&devices[curr_device_index].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+													&devices[RESERVED_INDEX].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
 			break;
 
 		case S_VERIFY_REPLY: /* | Ek{verify nonce-1} | */
@@ -661,16 +728,16 @@ send_key_exchange_packet(void)
 			if(send_tries < 1) verify_reply_message();
 			/* Send encrypted packet to remote device */
 			keymanagement_send_encrypted_packet(sec_conn, keypacketbuf, &tot_len, ADATA_KEYEXCHANGE,
-													&devices[curr_device_index].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+													&devices[RESERVED_INDEX].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
 			break;
 		case S_VERIFY_OK:
 			/* Create message */
 			verify_ok_message();
 			/* Send encrypted packet to remote device */
 			keymanagement_send_encrypted_packet(sec_conn, keypacketbuf, &tot_len, ADATA_KEYEXCHANGE,
-													&devices[curr_device_index].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+													&devices[RESERVED_INDEX].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
 			/* Choose next state */
-			if(send_tries > MAX_SEND_TRIES-1) {
+			if(send_tries == MAX_SEND_TRIES-1) {
 				key_exchange_state = S_KEY_EXCHANGE_SUCCES;
 			}
 			break;
@@ -702,12 +769,12 @@ comm_request_message(void) {
 	uip_ipaddr_t curr_ip;
 
 	/* Get own ip address */
-	uip_ds6_select_src(&curr_ip, &devices[0].remote_device_id);
+	uip_ds6_select_src(&curr_ip, &devices[EDGE_ROUTER_INDEX].remote_device_id);
 
 	/* Copy own ID */
 	memcpy(&keypacketbuf[1], &curr_ip.u8[0], DEVICE_ID_SIZE);
 	/* Copy remote ID */
-	memcpy(&keypacketbuf[17], &devices[curr_device_index].remote_device_id.u8[0], DEVICE_ID_SIZE);
+	memcpy(&keypacketbuf[17], &devices[RESERVED_INDEX].remote_device_id.u8[0], DEVICE_ID_SIZE);
 	/* Copy request nonce */
 	set16(keypacketbuf, 33, request_nonce);
 	keypacketbuf[35] = request_nonce_cntr;
@@ -773,7 +840,7 @@ verify_ok_message(void)
 	uip_ipaddr_t curr_ip;
 
 	/* Get own ip address */
-	uip_ds6_select_src(&curr_ip, &devices[curr_device_index].remote_device_id);
+	uip_ds6_select_src(&curr_ip, &devices[RESERVED_INDEX].remote_device_id);
 
 	/* Copy own ID */
 	memcpy(&keypacketbuf[1], &curr_ip.u8[0], DEVICE_ID_SIZE);
@@ -808,31 +875,29 @@ parse_packet(uint8_t *data, uint16_t len)
 		case S_KEY_EXCHANGE_IDLE:
 			if(data[0] == S_INIT_REQUEST && len == INIT_REQUEST_MSG_SIZE) {
 				/* Check if we know the source */
-				device_index = search_device_id(&UIP_IP_BUF->srcipaddr);
+				device_index = search_device_id(&UIP_IP_BUF->srcipaddr,0);
 				if(device_index < 0) {
-					/* If not -> check if there still is free space for new devices */
-					if(amount_of_known_devices < MAX_DEVICES) {
+					/* If not -> check if there still is free space for new devices and that the requesting node is NOT the edge_router */
+					if((amount_of_known_devices < MAX_DEVICES) && (device_index != EDGE_ROUTER_INDEX)) {
 						/* Copy requesting id */
-						memcpy(&temp_remote_device_id.u8[0], &UIP_IP_BUF->srcipaddr.u8[0], DEVICE_ID_SIZE);
+						memcpy(&devices[RESERVED_INDEX].remote_device_id.u8[0], &UIP_IP_BUF->srcipaddr.u8[0], DEVICE_ID_SIZE);
 					} else {
 						return 0;
 					}
 				} else {
-					memcpy(&temp_remote_device_id.u8[0], &devices[device_index].remote_device_id.u8[0], DEVICE_ID_SIZE);
+					copy_id_to_reserved((uint8_t)device_index);
 				}
 				/* If there is a valid request we need to reply */
 				key_exchange_state = S_INIT_REPLY;
 				/* Send tries reset */
 				send_tries = 0;
-				/* Reset key exchange device_index */
-				curr_device_index = 0xff;
 			}
 			break;
 
 		case S_INIT_REQUEST:
 			if(data[0] == S_INIT_REPLY && len == INIT_REPLY_MSG_SIZE && send_tries > 0) {
 				/* Check the remote device id */
-				if(memcmp(&UIP_IP_BUF->srcipaddr.u8[0], &devices[curr_device_index].remote_device_id.u8[0], DEVICE_ID_SIZE) == 0) {
+				if(memcmp(&UIP_IP_BUF->srcipaddr.u8[0], &devices[RESERVED_INDEX].remote_device_id.u8[0], DEVICE_ID_SIZE) == 0) {
 					/* Get the remote nonce */
 					memcpy(&remote_request_nonce[0], &data[1], 3);
 
@@ -847,7 +912,7 @@ parse_packet(uint8_t *data, uint16_t len)
 			if(data[3] == S_COMM_REPLY && len == COMM_REPLY_MSG_SIZE) {
 				if(keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, data, &temp_data_len, ADATA_KEYEXCHANGE) == DECRYPT_OK) {
 					/* Parse packet */
-					if(parse_comm_reply_message(data, &temp_remote_device_id)) {
+					if(parse_comm_reply_message(data)) {
 						/* Send verify message */
 						key_exchange_state = S_VERIFY_REQUEST;
 						/* Send tries reset */
@@ -861,7 +926,7 @@ parse_packet(uint8_t *data, uint16_t len)
 			if(data[3] == S_COMM_REPLY && len == COMM_REPLY_MSG_SIZE) {
 				if(keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, data, &temp_data_len, ADATA_KEYEXCHANGE) == DECRYPT_OK) {
 					/* Parse packet */
-					if(parse_comm_reply_message(data, &devices[curr_device_index].remote_device_id)) {
+					if(parse_comm_reply_message(data)) {
 						/* Wait for Verify message */
 						key_exchange_state = S_COMM_REPLY;
 						/* Send tries reset */
@@ -938,12 +1003,12 @@ parse_packet(uint8_t *data, uint16_t len)
 #define REQUEST_NONCE_OFFSET	4
 
 static uint8_t
-parse_comm_reply_message(uint8_t *data, uip_ipaddr_t *remote_device_id) {
+parse_comm_reply_message(uint8_t *data) {
 	uint8_t temp_request_nonce[3];
 	uip_ipaddr_t curr_ip;
 
 	/* Get own ip address */
-	uip_ds6_select_src(&curr_ip, remote_device_id);
+	uip_ds6_select_src(&curr_ip, &devices[RESERVED_INDEX].remote_device_id);
 
 	/* Assemble request nonce */
 	set16(temp_request_nonce, 0, request_nonce);
@@ -968,15 +1033,9 @@ parse_comm_reply_message(uint8_t *data, uip_ipaddr_t *remote_device_id) {
 		return 0;
 	}
 
-	/* Add security device and data */
-	if(key_exchange_state == S_INIT_REPLY) {
-		curr_device_index = (uint8_t)add_device_id(remote_device_id);
-	}
-	devices[curr_device_index].nonce_cntr = 1;
-	devices[curr_device_index].key_freshness = UPDATE_NONCE;
-
 	/* Store security data */
-	memcpy(&devices[curr_device_index].session_key[0], &data[SESSIONKEY_OFFSET], SEC_KEY_SIZE);
+	reset_sec_data(RESERVED_INDEX);
+	memcpy(&devices[RESERVED_INDEX].session_key[0], &data[SESSIONKEY_OFFSET], SEC_KEY_SIZE);
 
 	/* Increment request nonce */
 	increment_request_nonce();

@@ -46,7 +46,7 @@
 #define NETSTACK_CONF_RADIO   cc2420_driver
 #define NETSTACK_CONF_FRAMER  framer_802154
 
-#define MAX_DEVICES 			3
+#define MAX_DEVICES 			5
 extern  uint8_t  network_key[16];
 
 #define ENABLE_CBC_LINK_SECURITY 1

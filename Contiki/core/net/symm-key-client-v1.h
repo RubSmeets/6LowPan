@@ -102,6 +102,8 @@ typedef enum {
 	UPDATE_NONCE	= 0x02,
 	/**< Free spot in device list */
 	FREE_SPOT		= 0x00,
+	/**< Reserved spot in device list */
+	RESERVED		= 0x04,
 } keyfreshness_flags_type_t;
 
 #endif /* KEYMANAGEMENT_V1_H_ */
