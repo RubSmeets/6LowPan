@@ -47,8 +47,8 @@
 
 /* Timing defines */
 #define CHECK_INTERVAL		(CLOCK_SECOND)*5
-#define MAX_WAIT_TIME_SEND		6
-#define MAX_SEND_TRIES			4
+#define MAX_WAIT_TIME_SEND		8
+#define MAX_SEND_TRIES			3
 
 /* Different states */
 #define S_IDLE 			0
@@ -108,6 +108,7 @@ static void remove_sec_device(uint8_t index);
 static void reset_sec_data(uint8_t index);
 static void copy_id_to_reserved(uint8_t index);
 static void store_reserved_sec_data(void);
+static void reset_failed_key_exchanges(void);
 static uint8_t key_exchange_protocol(void);
 static void send_key_exchange_packet(void);
 static void init_reply_message(void);
@@ -423,6 +424,8 @@ PROCESS_THREAD(keymanagement_process, ev, data)
 						state = S_REQUEST_KEY;
 						key_exchange_state = S_INIT_REQUEST;
 						copy_id_to_reserved(device_index);
+					} else {
+						reset_failed_key_exchanges();
 					}
 					break;
 
@@ -622,6 +625,22 @@ store_reserved_sec_data(void)
 
 /*-----------------------------------------------------------------------------------*/
 /**
+ *	Reset the failed key-exchanges to expired											NIET AF!
+ */
+/*-----------------------------------------------------------------------------------*/
+static void
+reset_failed_key_exchanges(void)
+{
+	uint8_t i;
+	for(i=2; i<MAX_DEVICES; i++) {
+		if(devices[i].key_freshness == FAILED) {
+			devices[i].key_freshness = EXPIRED;
+		}
+	}
+}
+
+/*-----------------------------------------------------------------------------------*/
+/**
  * key_exchange_protocol is the main callback (protocol) function that decides if the
  * protocol should continue or stop.
  *
@@ -643,21 +662,31 @@ key_exchange_protocol(void)
 	if(key_exchange_state == S_KEY_EXCHANGE_SUCCES) {
 		/* Key exchange is finished */
 		PRINTFDEBUG("key: Succes\n");
+
 		/* Store security data */
 		store_reserved_sec_data();
 		key_exchange_state = S_KEY_EXCHANGE_IDLE;
 		return 0;
+
 	} else if(key_exchange_state == S_KEY_EXCHANGE_FAILED) {
 		PRINTFDEBUG("key: Failed\n");
+		/* Increment fails of requested device */
+		int device_index = search_device_id(&devices[RESERVED_INDEX].remote_device_id,2);
+		if(!(device_index < 0)) {
+			devices[device_index].key_freshness = FAILED;
+		}
 		/* Key exchange failed */
 		key_exchange_state = S_KEY_EXCHANGE_IDLE;
 		return 0;
+
 	} else if(key_exchange_state == S_KEY_EXCHANGE_IDLE) {
 		/* Reset RESERVED device */
 		reset_sec_data(RESERVED_INDEX);
+
 		/* Reset device id */
 		memset(&devices[RESERVED_INDEX].remote_device_id.u8[0], 0, DEVICE_ID_SIZE);
 		return 0;
+
 	}
 
 	/* Create and send protocol message */

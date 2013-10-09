@@ -106,8 +106,13 @@ send_packet(void *ptr)
     for(i=0; i<16; i++) PRINTF("%.2x",server_ipaddr.u8[i]);
     PRINTF("\n");
 
+#if ENABLE_CCM_APPLICATION & SEC_CLIENT
     data_ptr = keymanagement_send_encrypted_packet(client_conn, (uint8_t *)buf, &data_len, 0, &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
     PRINTF("result: %d\n", data_ptr);
+#else
+    uip_udp_packet_sendto(client_conn, &buf[data_ptr], 26,
+                            &server_ipaddr, UIP_HTONS(UDP_SERVER_PORT));
+#endif
 //
 //  result = cc2420_encrypt_ccm((uint8_t *)buf, 24);
 //  if(!result) PRINTF("Encryption failed: busy!\n");

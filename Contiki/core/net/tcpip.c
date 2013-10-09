@@ -49,7 +49,7 @@
 
 #include <string.h>
 
-#define DEBUG 1 //DEBUG_NONE
+#define DEBUG DEBUG_NONE
 #include "net/uip-debug.h"
 
 #if UIP_LOGGING

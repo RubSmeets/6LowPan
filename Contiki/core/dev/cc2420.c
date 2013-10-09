@@ -87,7 +87,7 @@
 #endif
 */
 
-#define DEBUG_SEC 1
+#define DEBUG_SEC 0
 #if DEBUG_SEC
 #include <stdio.h>
 uint8_t *buf_temp;

@@ -104,6 +104,8 @@ typedef enum {
 	FREE_SPOT		= 0x00,
 	/**< Reserved spot in device list */
 	RESERVED		= 0x04,
+	/**< Key exchange failed before */
+	FAILED			= 0x05,
 } keyfreshness_flags_type_t;
 
 #endif /* KEYMANAGEMENT_V1_H_ */
