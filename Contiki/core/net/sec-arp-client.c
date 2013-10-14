@@ -14,6 +14,8 @@
 #include "contiki-conf.h"
 #include "dev/watchdog.h"
 
+#if ENABLE_CBC_LINK_SECURITY
+
 #define DEBUG 0
 #if DEBUG
 #include <stdio.h>
@@ -28,7 +30,6 @@
 #define KEY_SIZE			16
 
 struct device_sec_data devices[MAX_DEVICES];
-uint8_t  network_key[16];
 uint8_t  hasKeyIs_1;
 
 static short parse_hello_reply(uint8_t *buf);
@@ -60,10 +61,6 @@ sec_arp_init(void)
 {
 	uint8_t sum, i;
 	uint8_t temp_buf[KEY_SIZE*3];
-
-	/* Reset network_key */
-	memset(&network_key[0], 0x00, KEY_SIZE);
-
 
 	/* Read security data from Flash mem */
 	xmem_pread(temp_buf, (KEY_SIZE*3), MAC_SECURITY_DATA);
@@ -174,11 +171,8 @@ parse_hello_reply(uint8_t *buf)
 static void
 set_security_data(uint8_t *buf)
 {
-	/* Set network key */
-	memcpy(&network_key[0], &buf[0], KEY_SIZE);
-
-	/* write key to cc2420 reg */
-	CC2420_WRITE_RAM_REV(&network_key[0], CC2420RAM_KEY0, KEY_SIZE);
+	/* write network key to cc2420 reg */
+	CC2420_WRITE_RAM_REV(&buf[0], CC2420RAM_KEY0, KEY_SIZE);
 
 	/* Set sensor key and security app data */
 	devices[0].key_freshness = 0x03;
@@ -187,3 +181,4 @@ set_security_data(uint8_t *buf)
 	memcpy(&devices[0].remote_device_id.u8[0], &buf[APPLAYER_OFFSET], 16);
 	memcpy(&devices[0].session_key[0], &buf[APPLAYER_OFFSET+16], KEY_SIZE);
 }
+#endif

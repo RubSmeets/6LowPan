@@ -76,13 +76,6 @@ int cc2420_get_txpower(void);
 #if ENABLE_CBC_LINK_SECURITY
 #define MIC_LEN 8			 /**< Length of the CCM MIC in bytes */
 #define CC2420RAM_SEC_LEN 16 /**< Length of security data in CC2420 RAM registers */
-
-typedef struct {
-  uint8_t network_key[16]; 	/**< 128-bit. symmetric key for MAC security */
-  uint8_t sensor_key[16];	/**< 128-bit. unique sensor key */
-  uint8_t key_seq_cntr;	   	/**< 4 byte.  key seq counter */
-} mac_security_data_t;
-
 #endif
 
 #if ENABLE_CCM_APPLICATION

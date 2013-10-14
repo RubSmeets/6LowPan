@@ -371,6 +371,7 @@ uint32_t uip_ds6_compute_reachable_time(void); /** \brief compute random reachab
 /** @} */
 /** @} */
 
+#if ENABLE_CBC_LINK_SECURITY
 /* Global variable for security devices */
 struct device_sec_data {
   uip_ipaddr_t  	remote_device_id;
@@ -383,5 +384,6 @@ struct device_sec_data {
 };
 
 extern  struct device_sec_data devices[MAX_DEVICES];
+#endif
 
 #endif /* __UIP_DS6_H__ */

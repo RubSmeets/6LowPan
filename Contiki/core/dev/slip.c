@@ -60,7 +60,7 @@ uint16_t slip_rubbish, slip_twopackets, slip_overflow, slip_ip_drop;
 #endif
 
 #if ENABLE_CBC_LINK_SECURITY & SEC_CLIENT
-uint8_t  network_key[16];
+
 #endif
 
 #define DEBUG 0
