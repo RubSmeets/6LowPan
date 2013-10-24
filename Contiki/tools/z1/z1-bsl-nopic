@@ -20,7 +20,7 @@ import serial, os, glob
 #forked from TinyOS Telos version.
 VERSION = string.split("Revision: 1.39-goodfet-8 z1 fork")[1] 
 
-DEBUG = 0                                       #disable debug messages by default
+DEBUG = 1                                       #disable debug messages by default
 
 #copy of the patch file provided by TI
 #this part is (C) by Texas Instruments
