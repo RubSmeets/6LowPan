@@ -11,7 +11,7 @@
 
 #include <string.h>
 
-#if ENABLE_CCM_APPLICATION & SEC_CLIENT
+#if ENABLE_CCM_APPLICATION & SEC_CLIENT | 1
 
 #define DEBUG_SEC 1
 #if DEBUG_SEC
@@ -62,10 +62,9 @@
 #define S_COMM_REPLY			3
 #define S_VERIFY_REQUEST		4
 #define S_VERIFY_REPLY			5
-#define S_VERIFY_OK				6
-#define S_KEY_EXCHANGE_SUCCES	7
-#define S_KEY_EXCHANGE_FAILED	8
-#define S_KEY_EXCHANGE_IDLE 	9
+#define S_KEY_EXCHANGE_SUCCES	6
+#define S_KEY_EXCHANGE_FAILED	7
+#define S_KEY_EXCHANGE_IDLE 	8
 
 /* Different protocol message sizes */
 #define INIT_REQUEST_MSG_SIZE	1	/* msg_type(1) */
@@ -74,7 +73,6 @@
 #define COMM_REPLY_MSG_SIZE		47	/* encryption_nonce(3) | msg_type(1) | encrypted_req_nonce(3) | encrypted_sessionkey(16) | encrypted_remote_device_id(16) | MIC(8) */
 #define VERIFY_REQUEST_MSG_SIZE	28	/* encryption_nonce(3) | msg_type(1) | encrypted_verify_nonce(3) | padding (12) | MIC(8) */
 #define VERIFY_REPLY_MSG_SIZE	28	/* encryption_nonce(3) | msg_type(1) | encrypted_remote_verify_nonce(3) | padding (12) | MIC(8) */
-#define VERIFY_OK_MSG_SIZE		28	/* encryption_nonce(3) | msg_type(1) | device_id(16) | MIC(8) */
 
 /* Global variables */
 struct device_sec_data devices[MAX_DEVICES];
@@ -115,7 +113,6 @@ static void init_reply_message(void);
 static void comm_request_message(void);
 static void verify_request_message(void);
 static void verify_reply_message(void);
-static void verify_ok_message(void);
 static short parse_packet(uint8_t *data, uint16_t len);
 static uint8_t parse_comm_reply_message(uint8_t *data);
 static void update_key_and_device_id(uint8_t *sessionkey);
@@ -758,13 +755,7 @@ send_key_exchange_packet(void)
 			/* Send encrypted packet to remote device */
 			keymanagement_send_encrypted_packet(sec_conn, keypacketbuf, &tot_len, ADATA_KEYEXCHANGE,
 													&devices[RESERVED_INDEX].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
-			break;
-		case S_VERIFY_OK:
-			/* Create message */
-			verify_ok_message();
-			/* Send encrypted packet to remote device */
-			keymanagement_send_encrypted_packet(sec_conn, keypacketbuf, &tot_len, ADATA_KEYEXCHANGE,
-													&devices[RESERVED_INDEX].remote_device_id, UIP_HTONS(UDP_CLIENT_SEC_PORT));
+
 			/* Choose next state */
 			if(send_tries == MAX_SEND_TRIES-1) {
 				key_exchange_state = S_KEY_EXCHANGE_SUCCES;
@@ -860,25 +851,6 @@ verify_reply_message(void)
 
 /*-----------------------------------------------------------------------------------*/
 /**
- *	Set keypacketbuf with verify reply message											NIET GETEST
- */
-/*-----------------------------------------------------------------------------------*/
-static void
-verify_ok_message(void)
-{
-	uip_ipaddr_t curr_ip;
-
-	/* Get own ip address */
-	uip_ds6_select_src(&curr_ip, &devices[RESERVED_INDEX].remote_device_id);
-
-	/* Copy own ID */
-	memcpy(&keypacketbuf[1], &curr_ip.u8[0], DEVICE_ID_SIZE);
-
-	tot_len = 17;
-}
-
-/*-----------------------------------------------------------------------------------*/
-/**
  * The parse function dissects the incoming messages according to the
  * current state. It also serves as next-state function for the protocol.
  *
@@ -911,6 +883,8 @@ parse_packet(uint8_t *data, uint16_t len)
 						/* Copy requesting id */
 						memcpy(&devices[RESERVED_INDEX].remote_device_id.u8[0], &UIP_IP_BUF->srcipaddr.u8[0], DEVICE_ID_SIZE);
 					} else {
+						/* Make room for new device */
+
 						return 0;
 					}
 				} else {
@@ -943,7 +917,7 @@ parse_packet(uint8_t *data, uint16_t len)
 					/* Parse packet */
 					if(parse_comm_reply_message(data)) {
 						/* Send verify message */
-						key_exchange_state = S_VERIFY_REQUEST;
+						key_exchange_state = S_COMM_REPLY;
 						/* Send tries reset */
 						send_tries = 0;
 					}
@@ -957,7 +931,7 @@ parse_packet(uint8_t *data, uint16_t len)
 					/* Parse packet */
 					if(parse_comm_reply_message(data)) {
 						/* Wait for Verify message */
-						key_exchange_state = S_COMM_REPLY;
+						key_exchange_state = S_VERIFY_REQUEST;
 						/* Send tries reset */
 						send_tries = 0;
 					}
@@ -993,20 +967,8 @@ parse_packet(uint8_t *data, uint16_t len)
 						/* Send tries reset */
 						send_tries = 0;
 						/* Choose next state */
-						key_exchange_state = S_VERIFY_OK;
+						key_exchange_state = S_KEY_EXCHANGE_SUCCES;
 					}
-				}
-			}
-			break;
-
-		case S_VERIFY_REPLY:
-			if(data[3] == S_VERIFY_OK && len == VERIFY_OK_MSG_SIZE) {
-				if(keymanagement_decrypt_packet(&UIP_IP_BUF->srcipaddr, data, &temp_data_len, ADATA_KEYEXCHANGE) == DECRYPT_OK) {
-					PRINTFDEBUG("Got reply\n");
-					/* Send tries reset */
-					send_tries = 0;
-					/* Choose next state */
-					key_exchange_state = S_KEY_EXCHANGE_SUCCES;
 				}
 			}
 			break;
